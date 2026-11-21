@@ -37,6 +37,9 @@ a{color:var(--red2)}
 .cardi:hover{border-color:var(--red2);box-shadow:0 0 0 1px var(--red2)}
 .cardi .h{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
 .tbl .act{flex-wrap:nowrap}.cardi .p{font-size:13px}.cardi .act{justify-content:flex-start;margin-top:auto;padding-top:8px}
+.pw{position:relative;display:block}.pw input{width:100%;padding-right:48px}
+.eye{all:unset;cursor:pointer;position:absolute;right:4px;top:50%;transform:translateY(-50%);width:40px;height:40px;display:grid;place-items:center;border-radius:8px;color:var(--mut)}
+.eye:hover{background:var(--soft);color:var(--red2)}.eye:focus-visible{outline:2px solid var(--red2)}
 /* Thanh bên */
 .side{background:linear-gradient(180deg,#6e0909 0%,#560606 55%,#3f0404 100%);color:#fff;position:sticky;top:0;height:100vh;overflow:auto;padding:14px 12px 20px;box-shadow:inset -1px 0 0 rgba(255,80,80,.35)}
 .brand{display:flex;gap:12px;align-items:center;padding:6px 6px 16px;border-bottom:1px solid rgba(255,255,255,.12)}
@@ -161,7 +164,7 @@ details ol{padding-left:18px;margin:6px 0}
  <form id="lf" class="card" style="width:min(100%,400px);display:grid;gap:12px">
   <div class="brand" style="border:0;padding:0"><img src="logo.png" alt=""><div><b style="color:var(--ink)">ĐẠI DŨNG CORP</b><span style="color:var(--red2)">HỆ THỐNG KHO AN HẠ</span></div></div>
   <p class="sm" style="margin:0">Đăng nhập bằng tài khoản được cấp để tra cứu chứng từ.</p>
-  <div class="form" style="grid-template-columns:1fr"><label>Email<input id="lEmail" type="email" autocomplete="username" required></label><label>Mật khẩu<input id="lPass" type="password" autocomplete="current-password" required></label></div>
+  <div class="form" style="grid-template-columns:1fr"><label>Email<input id="lEmail" type="email" autocomplete="username" required></label><label>Mật khẩu<span class="pw"><input id="lPass" type="password" autocomplete="current-password" required><button type="button" class="eye" data-for="lPass" aria-label="Hiện mật khẩu" title="Hiện mật khẩu"></button></span></label></div>
   <button class="btn big" type="submit">Đăng nhập</button>
   <div class="row" style="margin:0;justify-content:space-between"><button type="button" class="btn ghost" id="lSign">Đăng ký tài khoản mới</button><button type="button" class="btn ghost" id="lForgot">Quên mật khẩu</button></div>
   <p class="sm" style="margin:0">Chỉ email công ty <b>@daidung.vn</b> được truy cập. Đăng ký xong, mở email để bấm link xác nhận rồi đăng nhập.</p>
@@ -221,6 +224,10 @@ async function load(){
  D=all.map(prep);index();route();
 }
 const HOME=location.origin+location.pathname;
+const EYE='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+const EYE_OFF='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3l18 18M10.6 5.1A10 10 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3.2 4.1M6.6 6.6A17 17 0 0 0 2 12s3.6 7 10 7a9.6 9.6 0 0 0 4.4-1"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>';
+function bindEyes(){document.querySelectorAll('.eye').forEach(b=>{b.innerHTML=EYE;b.onclick=()=>{const i=document.getElementById(b.dataset.for);const show=i.type==='password';i.type=show?'text':'password';b.innerHTML=show?EYE_OFF:EYE;b.setAttribute('aria-label',show?'Ẩn mật khẩu':'Hiện mật khẩu');b.title=b.getAttribute('aria-label');i.focus()}})}
+bindEyes();
 const okMail=m=>/@daidung\.vn$/i.test(m);
 $('#lSign').onclick=async()=>{const m=$('#lEmail').value.trim(),p=$('#lPass').value;
  if(!okMail(m)){$('#lMsg').textContent='Chỉ đăng ký bằng email @daidung.vn.';return}
@@ -229,7 +236,7 @@ $('#lSign').onclick=async()=>{const m=$('#lEmail').value.trim(),p=$('#lPass').va
  $('#lMsg').textContent=error?'Không đăng ký được: '+error.message:'Đã gửi email xác nhận tới '+m+'. Mở email, bấm link xác nhận rồi quay lại đăng nhập.'};
 $('#lForgot').onclick=async()=>{const m=$('#lEmail').value.trim();if(!okMail(m)){$('#lMsg').textContent='Nhập email @daidung.vn vào ô Email trước.';return}
  const {error}=await SB.auth.resetPasswordForEmail(m,{redirectTo:HOME});$('#lMsg').textContent=error?'Lỗi: '+error.message:'Đã gửi link đặt lại mật khẩu tới '+m+'.'};
-SB.auth.onAuthStateChange(async ev=>{if(ev==='PASSWORD_RECOVERY'){const np=prompt?null:null;$('#login').style.display='grid';$('#lf').innerHTML='<p class="lbl">Đặt mật khẩu mới</p><div class="form" style="grid-template-columns:1fr"><label>Mật khẩu mới<input id="np" type="password" minlength="8" required></label></div><button class="btn big" type="submit">Lưu mật khẩu</button><div id="lMsg" class="sm"></div>';$('#lf').onsubmit=async e=>{e.preventDefault();const {error}=await SB.auth.updateUser({password:$('#np').value});$('#lMsg').textContent=error?'Lỗi: '+error.message:'Đã đổi mật khẩu.';if(!error)setTimeout(()=>location.replace(HOME),1200)}}});
+SB.auth.onAuthStateChange(async ev=>{if(ev==='PASSWORD_RECOVERY'){const np=prompt?null:null;$('#login').style.display='grid';$('#lf').innerHTML='<p class="lbl">Đặt mật khẩu mới</p><div class="form" style="grid-template-columns:1fr"><label>Mật khẩu mới<span class="pw"><input id="np" type="password" minlength="8" required><button type="button" class="eye" data-for="np" aria-label="Hiện mật khẩu" title="Hiện mật khẩu"></button></span></label></div><button class="btn big" type="submit">Lưu mật khẩu</button><div id="lMsg" class="sm"></div>';bindEyes();$('#lf').onsubmit=async e=>{e.preventDefault();const {error}=await SB.auth.updateUser({password:$('#np').value});$('#lMsg').textContent=error?'Lỗi: '+error.message:'Đã đổi mật khẩu.';if(!error)setTimeout(()=>location.replace(HOME),1200)}}});
 $('#lf').onsubmit=async e=>{e.preventDefault();$('#lMsg').textContent='Đang đăng nhập…';const {error}=await SB.auth.signInWithPassword({email:$('#lEmail').value.trim(),password:$('#lPass').value});if(error){$('#lMsg').textContent=/confirm/i.test(error.message)?'Email chưa được xác nhận – mở email và bấm link xác nhận.':'Không đăng nhập được: sai email hoặc mật khẩu.';return}$('#lMsg').textContent='';load().catch(err=>{$('#view').innerHTML='<div class="notice">Không tải được dữ liệu: '+esc(err.message)+'</div>'})};
 
 const IDB={db:null,open(){return new Promise(ok=>{try{const r=indexedDB.open('ddk_kho',1);r.onupgradeneeded=()=>r.result.createObjectStore('kv');r.onsuccess=()=>{this.db=r.result;ok(this.db)};r.onerror=()=>ok(null)}catch{ok(null)}})},
