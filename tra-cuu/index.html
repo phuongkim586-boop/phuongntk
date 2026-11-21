@@ -189,6 +189,8 @@ const ls={get(k,d){try{const v=JSON.parse(localStorage.getItem('ddk_'+k));if(k==
 const url=r=>'https://drive.google.com/file/d/'+r.i+'/view';
 const fd=d=>d?d.slice(8,10)+'/'+d.slice(5,7)+'/'+d.slice(0,4):'—';
 const fmt=n=>Number(n).toLocaleString('vi-VN');
+let STOP=false;
+function progress(m){const t=$('#toast');clearTimeout(t._h);t.style.display='block';t.innerHTML=esc(m)+' <button type="button" id="tStop" style="margin-left:12px;background:#ff3d3d;color:#fff;border:0;border-radius:6px;padding:6px 12px;font-weight:700;cursor:pointer">Huỷ</button>';$('#tStop').onclick=()=>{STOP=true;t.textContent='Đang huỷ…'}}
 function toast(m,ms=3200){const t=$('#toast');t.textContent=m;t.style.display='block';clearTimeout(t._h);t._h=setTimeout(()=>t.style.display='none',ms)}
 function log(a,n,c){const L=ls.get('log',[]);L.unshift({t:new Date().toISOString(),a,n,c});ls.set('log',L.slice(0,500));pushLog(a,n,c)}
 
@@ -428,9 +430,9 @@ async function zipPdf(rows,name){
  {toast('Tải trọn bộ PDF chạy trong bản nội bộ trên Claude. Ở đây hãy xuất bảng kê Excel có link từng tệp.',9000);return}
  if(rows.length>60&&!(await ask(`Bộ này có ${rows.length} tệp PDF, tải có thể mất vài phút. Tiếp tục?`)))return;
  try{if(!window.JSZip)await lib('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js')}catch{toast('Không tải được thư viện nén ZIP');return}
- const zip=new JSZip();let ok=0,bad=[];
+ const zip=new JSZip();let ok=0,bad=[];STOP=false;
  for(const [i,r] of rows.entries()){
-  toast(`Đang tải PDF ${i+1}/${rows.length}: ${r.f}`,60000);
+  if(STOP){toast('Đã huỷ tải PDF.',4000);return}progress(`Đang tải PDF ${i+1}/${rows.length}: ${r.f}`);
   try{const res=await mcp.callTool('Google Drive','download_file_content',{fileId:r.i});const b64=findB64(res);if(!b64)throw 0;zip.file(r.d+'_'+r.f,b64,{base64:true});ok++}catch{bad.push(r.f)}
  }
  zip.file('BANG_KE.csv','\ufeffSố phiếu,Ngày,Loại,Dự án,NCC,Link\n'+rows.map(r=>[r.s,fd(r.d),TY[r.l],r.p||'',r.n||'',url(r)].map(x=>'"'+String(x).replace(/"/g,'""')+'"').join(',')).join('\n'));
@@ -462,10 +464,10 @@ async function mergePdf(rows,name,label){
  const mcp=null;{toast('Xuất PDF trọn bộ chạy trong bản nội bộ trên Claude (cần kết nối Google Drive). Ở đây bạn dùng nút Mở Drive cho từng phiếu hoặc xuất bảng kê Excel có link.',9000);return}
  if(rows.length>60&&!(await ask(`Bộ này có ${rows.length} tệp PDF, gộp có thể mất vài phút. Tiếp tục?`)))return;
  try{if(!window.PDFLib)await lib('https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js')}catch{toast('Không tải được thư viện PDF – chuyển sang tải ZIP');return zipPdf(rows,name)}
- const out=await PDFLib.PDFDocument.create();let ok=0,bad=[];
+ const out=await PDFLib.PDFDocument.create();let ok=0,bad=[];STOP=false;
  const sorted=rows.slice().sort((a,b)=>(a.d||'').localeCompare(b.d||'')||a.s.localeCompare(b.s,'vi',{numeric:true}));
  if(sorted.length>1)await coverPages(out,sorted,label||name.replace(/_/g,' '));
- for(const [i,r] of sorted.entries()){toast(`Đang gộp PDF ${i+1}/${sorted.length}: ${r.s}`,60000);
+ for(const [i,r] of sorted.entries()){if(STOP){toast('Đã huỷ gộp PDF.',4000);return}progress(`Đang gộp PDF ${i+1}/${sorted.length}: ${r.s}`);
   try{const res=await mcp.callTool('Google Drive','download_file_content',{fileId:r.i});const b64=findB64(res);if(!b64)throw 0;
    const bytes=Uint8Array.from(atob(b64),c=>c.charCodeAt(0));const src=await PDFLib.PDFDocument.load(bytes,{ignoreEncryption:true});
    const pages=await out.copyPages(src,src.getPageIndices());pages.forEach(p=>out.addPage(p));ok++}catch{bad.push(r.s)}}
