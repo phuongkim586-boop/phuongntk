@@ -216,10 +216,16 @@ async function load(){
  const {data:last}=await SB.from('chung_tu').select('dong_bo_luc').order('dong_bo_luc',{ascending:false}).limit(1);
  const t=last&&last[0]&&last[0].dong_bo_luc;
  if(cache&&cache.n===count&&cache.t===t)return;
- const all=[];const COLS='drive_id,so_phieu,loai,ngay,ngay_uoc_tinh,du_an_ma,du_an,wbs,nha_cung_cap,ncc_noi_bo,bo_phan,dien_giai,loai_giao_dich,lenh_po,tong_so_luong,ten_tep,thu_muc,kich_thuoc,ngay_tai_len,co_noi_dung,noi_dung';
- for(let k=0;k<count;k+=1000){$('#sidefoot').innerHTML=`Đang tải dữ liệu… ${fmt(Math.min(k+1000,count))}/${fmt(count)}`;if(!D.length)$('#view').innerHTML=`<div class="empty">Đang tải dữ liệu chứng từ… ${fmt(Math.min(k+1000,count))}/${fmt(count)}</div>`;
-  const {data,error}=await SB.from('chung_tu').select(COLS).order('drive_id').range(k,k+999);if(error)throw error;
-  all.push(...data.map(x=>{const o=fromRow(x);o.t=(o.t||'').slice(0,300);return o}))}
+ const COLS='drive_id,so_phieu,loai,ngay,ngay_uoc_tinh,du_an_ma,du_an,wbs,nha_cung_cap,ncc_noi_bo,bo_phan,dien_giai,loai_giao_dich,lenh_po,tong_so_luong,ten_tep,thu_muc,kich_thuoc,ngay_tai_len,co_noi_dung,noi_dung';
+ const P=1000,pages=Math.ceil(count/P),parts=new Array(pages);let done=0,next=0,shown=!!D.length;
+ const prog=()=>{const n=Math.min(done*P,count);$('#sidefoot').innerHTML=`Đang tải dữ liệu… ${fmt(n)}/${fmt(count)}`;if(!shown)$('#view').innerHTML=`<div class="empty">Đang tải dữ liệu chứng từ… ${fmt(n)}/${fmt(count)}</div>`};
+ prog();
+ const worker=async()=>{while(next<pages){const i=next++;let r,tries=0;
+  do{r=await SB.from('v_tra_cuu').select(COLS).order('drive_id').range(i*P,i*P+P-1)}while(r.error&&++tries<3);
+  if(r.error)throw r.error;parts[i]=r.data.map(fromRow);done++;prog();
+  if(!shown&&done>=3){shown=true;D=parts.filter(Boolean).flat().map(prep);index();route()}}};
+ await Promise.all(Array.from({length:6},worker));
+ const all=parts.flat();
  await IDB.set('docs',{n:count,t,rows:all});
  D=all.map(prep);index();route();
 }
