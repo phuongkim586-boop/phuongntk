@@ -162,7 +162,10 @@ details ol{padding-left:18px;margin:6px 0}
   <div class="brand" style="border:0;padding:0"><img src="logo.png" alt=""><div><b style="color:var(--ink)">ĐẠI DŨNG CORP</b><span style="color:var(--red2)">HỆ THỐNG KHO AN HẠ</span></div></div>
   <p class="sm" style="margin:0">Đăng nhập bằng tài khoản được cấp để tra cứu chứng từ.</p>
   <div class="form" style="grid-template-columns:1fr"><label>Email<input id="lEmail" type="email" autocomplete="username" required></label><label>Mật khẩu<input id="lPass" type="password" autocomplete="current-password" required></label></div>
-  <button class="btn big" type="submit">Đăng nhập</button><div id="lMsg" class="sm"></div>
+  <button class="btn big" type="submit">Đăng nhập</button>
+  <div class="row" style="margin:0;justify-content:space-between"><button type="button" class="btn ghost" id="lSign">Đăng ký tài khoản mới</button><button type="button" class="btn ghost" id="lForgot">Quên mật khẩu</button></div>
+  <p class="sm" style="margin:0">Chỉ email công ty <b>@daidung.vn</b> được truy cập. Đăng ký xong, mở email để bấm link xác nhận rồi đăng nhập.</p>
+  <div id="lMsg" class="sm"></div>
  </form></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script>
@@ -206,6 +209,7 @@ async function load(){
  $('#login').style.display='none';
  const cache=await IDB.get('docs');if(cache&&cache.rows){D=cache.rows.map(prep);index();route()}
  const {count}=await SB.from('chung_tu').select('drive_id',{count:'exact',head:true});
+ if(!count){$('#view').innerHTML='<div class="notice">Tài khoản này chưa được quyền xem dữ liệu. Chỉ email @daidung.vn đã xác nhận mới xem được.</div>';return}
  const {data:last}=await SB.from('chung_tu').select('dong_bo_luc').order('dong_bo_luc',{ascending:false}).limit(1);
  const t=last&&last[0]&&last[0].dong_bo_luc;
  if(cache&&cache.n===count&&cache.t===t)return;
@@ -216,7 +220,17 @@ async function load(){
  await IDB.set('docs',{n:count,t,rows:all});
  D=all.map(prep);index();route();
 }
-$('#lf').onsubmit=async e=>{e.preventDefault();$('#lMsg').textContent='Đang đăng nhập…';const {error}=await SB.auth.signInWithPassword({email:$('#lEmail').value.trim(),password:$('#lPass').value});if(error){$('#lMsg').textContent='Không đăng nhập được: sai email hoặc mật khẩu.';return}$('#lMsg').textContent='';load().catch(err=>{$('#view').innerHTML='<div class="notice">Không tải được dữ liệu: '+esc(err.message)+'</div>'})};
+const HOME=location.origin+location.pathname;
+const okMail=m=>/@daidung\.vn$/i.test(m);
+$('#lSign').onclick=async()=>{const m=$('#lEmail').value.trim(),p=$('#lPass').value;
+ if(!okMail(m)){$('#lMsg').textContent='Chỉ đăng ký bằng email @daidung.vn.';return}
+ if(p.length<8){$('#lMsg').textContent='Mật khẩu cần ít nhất 8 ký tự (nhập vào ô Mật khẩu ở trên).';return}
+ $('#lMsg').textContent='Đang đăng ký…';const {error}=await SB.auth.signUp({email:m,password:p,options:{emailRedirectTo:HOME}});
+ $('#lMsg').textContent=error?'Không đăng ký được: '+error.message:'Đã gửi email xác nhận tới '+m+'. Mở email, bấm link xác nhận rồi quay lại đăng nhập.'};
+$('#lForgot').onclick=async()=>{const m=$('#lEmail').value.trim();if(!okMail(m)){$('#lMsg').textContent='Nhập email @daidung.vn vào ô Email trước.';return}
+ const {error}=await SB.auth.resetPasswordForEmail(m,{redirectTo:HOME});$('#lMsg').textContent=error?'Lỗi: '+error.message:'Đã gửi link đặt lại mật khẩu tới '+m+'.'};
+SB.auth.onAuthStateChange(async ev=>{if(ev==='PASSWORD_RECOVERY'){const np=prompt?null:null;$('#login').style.display='grid';$('#lf').innerHTML='<p class="lbl">Đặt mật khẩu mới</p><div class="form" style="grid-template-columns:1fr"><label>Mật khẩu mới<input id="np" type="password" minlength="8" required></label></div><button class="btn big" type="submit">Lưu mật khẩu</button><div id="lMsg" class="sm"></div>';$('#lf').onsubmit=async e=>{e.preventDefault();const {error}=await SB.auth.updateUser({password:$('#np').value});$('#lMsg').textContent=error?'Lỗi: '+error.message:'Đã đổi mật khẩu.';if(!error)setTimeout(()=>location.replace(HOME),1200)}}});
+$('#lf').onsubmit=async e=>{e.preventDefault();$('#lMsg').textContent='Đang đăng nhập…';const {error}=await SB.auth.signInWithPassword({email:$('#lEmail').value.trim(),password:$('#lPass').value});if(error){$('#lMsg').textContent=/confirm/i.test(error.message)?'Email chưa được xác nhận – mở email và bấm link xác nhận.':'Không đăng nhập được: sai email hoặc mật khẩu.';return}$('#lMsg').textContent='';load().catch(err=>{$('#view').innerHTML='<div class="notice">Không tải được dữ liệu: '+esc(err.message)+'</div>'})};
 
 const IDB={db:null,open(){return new Promise(ok=>{try{const r=indexedDB.open('ddk_kho',1);r.onupgradeneeded=()=>r.result.createObjectStore('kv');r.onsuccess=()=>{this.db=r.result;ok(this.db)};r.onerror=()=>ok(null)}catch{ok(null)}})},
  async get(k){const db=this.db||await this.open();if(!db)return null;return new Promise(ok=>{try{const q=db.transaction('kv').objectStore('kv').get(k);q.onsuccess=()=>ok(q.result||null);q.onerror=()=>ok(null)}catch{ok(null)}})},
