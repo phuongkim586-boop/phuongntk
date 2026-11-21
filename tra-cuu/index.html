@@ -172,7 +172,7 @@ details ol{padding-left:18px;margin:6px 0}
    <button data-v="tra-cuu"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>1. TRA CỨU CHỨNG TỪ</button>
    <button data-v="ket-xuat"><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v3h16v-3"/></svg>2. KẾT XUẤT CHỨNG TỪ</button>
    <button data-v="du-lieu"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>3. QUẢN LÝ DỮ LIỆU<span class="bd" id="bdN">…</span></button>
-   <button data-v="supabase"><svg viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>4. DỮ LIỆU &amp; TÀI KHOẢN</button>
+   <button data-v="supabase"><svg viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>4. DỮ LIỆU &amp; TÀI KHOẢN<span class="bd" id="bdTK" style="display:none"></span></button>
    <button data-v="huong-dan"><svg viewBox="0 0 24 24"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M8 7h7M8 11h5"/></svg>5. HƯỚNG DẪN SỬ DỤNG</button>
   </nav>
   <div class="sidefoot" id="sidefoot">Đang nạp danh mục chứng từ…</div>
@@ -187,13 +187,23 @@ details ol{padding-left:18px;margin:6px 0}
 <div id="login" style="position:fixed;inset:0;z-index:50;display:grid;place-items:center;background:linear-gradient(160deg,#6e0909,#3f0404);padding:16px">
  <form id="lf" class="card" style="width:min(100%,400px);display:grid;gap:12px">
   <div class="brand" style="border:0;padding:0"><img src="logo.png" alt=""><div><b style="color:var(--ink)">ĐẠI DŨNG CORP</b><span style="color:var(--red2)">HỆ THỐNG KHO AN HẠ</span></div></div>
-  <p class="sm" style="margin:0">Đăng nhập bằng tài khoản được cấp để tra cứu chứng từ.</p>
+  <p class="sm" style="margin:0">Dùng tài khoản Google công ty <b>@daidung.vn</b> để đăng nhập.</p>
+  <button type="button" class="btn big" id="lGoogle">Đăng nhập bằng Google</button>
+  <details id="lMailBox"><summary class="sm" style="cursor:pointer">Đăng nhập bằng email &amp; mật khẩu</summary>
+  <div style="display:grid;gap:12px;margin-top:12px">
   <div class="form" style="grid-template-columns:1fr"><label>Email<input id="lEmail" type="email" autocomplete="username" required></label><label>Mật khẩu<span class="pw"><input id="lPass" type="password" autocomplete="current-password" required><button type="button" class="eye" data-for="lPass" aria-label="Hiện mật khẩu" title="Hiện mật khẩu"></button></span></label></div>
-  <button class="btn big" type="submit">Đăng nhập</button>
-  <div class="row" style="margin:0;justify-content:space-between"><button type="button" class="btn ghost" id="lSign">Đăng ký tài khoản mới</button><button type="button" class="btn ghost" id="lForgot">Quên mật khẩu</button></div>
-  <p class="sm" style="margin:0">Chỉ email công ty <b>@daidung.vn</b> được truy cập. Đăng ký xong, mở email để bấm link xác nhận rồi đăng nhập.</p>
+  <button class="btn big ghost" type="submit">Đăng nhập</button>
+  <div class="row" style="margin:0;justify-content:flex-end"><button type="button" class="btn ghost" id="lForgot">Quên mật khẩu</button></div>
+  </div></details>
+  <p class="sm" style="margin:0">Lần đầu đăng nhập, tài khoản sẽ <b>chờ quản trị viên duyệt</b> rồi mới xem được dữ liệu.</p>
   <div id="lMsg" class="sm"></div>
  </form></div>
+<div id="wait" style="position:fixed;inset:0;z-index:50;display:none;place-items:center;background:linear-gradient(160deg,#6e0909,#3f0404);padding:16px">
+ <div class="card" style="width:min(100%,420px);display:grid;gap:12px">
+  <div class="brand" style="border:0;padding:0"><img src="logo.png" alt=""><div><b style="color:var(--ink)">ĐẠI DŨNG CORP</b><span style="color:var(--red2)">HỆ THỐNG KHO AN HẠ</span></div></div>
+  <p id="wMsg" style="margin:0"></p>
+  <div class="row" style="margin:0"><button type="button" class="btn" id="wRe">Kiểm tra lại</button><button type="button" class="btn ghost" id="wOut">Đăng xuất</button></div>
+ </div></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script>
 // Bản GitHub Pages: chạy ngoài Claude. Tải tệp bằng trình duyệt; không có kết nối Drive/Supabase qua Claude.
@@ -232,13 +242,28 @@ function index(){
  $('#meta').innerHTML=`Cập nhật danh mục: ${esc(ls.get('lastSync','21/11/2026'))}`;
 }
 const SB=supabase.createClient("https://zpdbodcnhhbbhuyisgjc.supabase.co","sb_publishable_VR2g0WZkcfVlKY5cftVRow_LRNCjLTk");
+let ME={email:'',admin:false};
+async function checkAccount(session){
+ const em=session.user.email||'';
+ const {data:tk,error}=await SB.from('tai_khoan').select('trang_thai,la_quan_tri').eq('id',session.user.id).maybeSingle();
+ if(!error&&tk&&tk.trang_thai==='da_duyet'){ME={email:em,admin:!!tk.la_quan_tri};$('#wait').style.display='none';if(ME.admin)pendingBadge(true);return true}
+ ME={email:em,admin:false};
+ $('#wMsg').textContent=error?'Không kiểm tra được tài khoản: '+error.message
+  :!/@daidung\.vn$/i.test(em)?'Tài khoản '+em+' không thuộc tên miền @daidung.vn nên không dùng được hệ thống. Bấm Đăng xuất rồi chọn tài khoản công ty.'
+  :!tk?'Chưa tìm thấy tài khoản '+em+' trong danh sách. Bấm Đăng xuất rồi đăng nhập lại bằng Google.'
+  :tk.trang_thai==='tu_choi'?'Tài khoản '+em+' chưa được cấp quyền xem dữ liệu. Liên hệ quản trị viên nếu cần.'
+  :'Tài khoản '+em+' đã đăng ký và đang chờ quản trị viên duyệt. Khi được duyệt, bấm "Kiểm tra lại".';
+ $('#wait').style.display='grid';$('#view').innerHTML='';return false}
+function setBadge(n){const b=$('#bdTK');if(!b)return;b.textContent=n||'';b.style.display=n?'':'none'}
+async function pendingBadge(showToast){if(!ME.admin)return;const {count}=await SB.from('tai_khoan').select('id',{count:'exact',head:true}).eq('trang_thai','cho_duyet');setBadge(count||0);if(showToast&&count)toast('Có '+count+' tài khoản đang chờ duyệt (mục 4. Dữ liệu & tài khoản)',6000)}
 async function load(){
  const {data:{session}}=await SB.auth.getSession();
  if(!session){$('#login').style.display='grid';$('#view').innerHTML='';return}
  $('#login').style.display='none';
+ if(!(await checkAccount(session)))return;
  const cache=await IDB.get('docs');if(cache&&cache.rows){D=cache.rows.map(prep);index();route()}
  const {count}=await SB.from('chung_tu').select('drive_id',{count:'exact',head:true});
- if(!count){$('#view').innerHTML='<div class="notice">Tài khoản này chưa được quyền xem dữ liệu. Chỉ email @daidung.vn đã xác nhận mới xem được.</div>';return}
+ if(!count){$('#view').innerHTML='<div class="notice">Chưa đọc được dữ liệu chứng từ. Vào mục 4 bấm Tải lại dữ liệu, hoặc báo quản trị viên.</div>';return}
  const {data:last}=await SB.from('chung_tu').select('dong_bo_luc').order('dong_bo_luc',{ascending:false}).limit(1);
  const t=last&&last[0]&&last[0].dong_bo_luc;
  if(cache&&cache.n===count&&cache.t===t)return;
@@ -262,14 +287,18 @@ function bindEyes(){document.querySelectorAll('.eye').forEach(b=>{b.innerHTML=EY
 bindEyes();
 const APP_URL='https://phuongkim586-boop.github.io/phuongntk/tra-cuu/';
 async function qrSvg(text){if(!window.qrcode)await lib('https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js');const q=qrcode(0,'M');q.addData(unescape(encodeURIComponent(text)));q.make();return q.createSvgTag({cellSize:6,margin:2,scalable:true})}
-async function showQR(){try{$('#dlgT').textContent='Mã QR kết nối hệ thống';$('#dlgB').innerHTML=`<div class="qrb"><div class="q">${await qrSvg(APP_URL)}</div><b>Quét bằng camera điện thoại để mở trang tra cứu</b><div class="sm">${APP_URL}</div><div class="row" style="justify-content:center"><button class="btn ghost" id="qCp">Sao chép link</button><button class="btn ghost" id="qDl">Tải ảnh QR (.svg)</button></div><div class="sm">Đăng nhập bằng email @daidung.vn như trên máy tính.</div></div>`;$('#dlg').classList.add('on');$('#qCp').onclick=()=>copyTxt(APP_URL);$('#qDl').onclick=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([$('#dlgB .q').innerHTML],{type:'image/svg+xml'}));a.download='QR_tra_cuu_chung_tu.svg';a.click()}}catch{toast('Không tạo được mã QR – kiểm tra mạng',5000)}}
+async function showQR(){try{$('#dlgT').textContent='Mã QR kết nối hệ thống';$('#dlgB').innerHTML=`<div class="qrb"><div class="q">${await qrSvg(APP_URL)}</div><b>Quét bằng camera điện thoại để mở trang tra cứu</b><div class="sm">${APP_URL}</div><div class="row" style="justify-content:center"><button class="btn ghost" id="qCp">Sao chép link</button><button class="btn ghost" id="qDl">Tải ảnh QR (.svg)</button></div><div class="sm">Đăng nhập bằng tài khoản Google @daidung.vn như trên máy tính.</div></div>`;$('#dlg').classList.add('on');$('#qCp').onclick=()=>copyTxt(APP_URL);$('#qDl').onclick=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([$('#dlgB .q').innerHTML],{type:'image/svg+xml'}));a.download='QR_tra_cuu_chung_tu.svg';a.click()}}catch{toast('Không tạo được mã QR – kiểm tra mạng',5000)}}
 document.addEventListener('click',e=>{if(e.target.closest('#qrBtn'))showQR()});
 const okMail=m=>/@daidung\.vn$/i.test(m);
-$('#lSign').onclick=async()=>{const m=$('#lEmail').value.trim(),p=$('#lPass').value;
- if(!okMail(m)){$('#lMsg').textContent='Chỉ đăng ký bằng email @daidung.vn.';return}
- if(p.length<8){$('#lMsg').textContent='Mật khẩu cần ít nhất 8 ký tự (nhập vào ô Mật khẩu ở trên).';return}
- $('#lMsg').textContent='Đang đăng ký…';const {error}=await SB.auth.signUp({email:m,password:p,options:{emailRedirectTo:HOME}});
- $('#lMsg').textContent=error?'Không đăng ký được: '+error.message:'Đã gửi email xác nhận tới '+m+'. Mở email, bấm link xác nhận rồi quay lại đăng nhập.'};
+$('#lGoogle').onclick=async()=>{const b=$('#lGoogle');b.disabled=true;$('#lMsg').textContent='Đang mở trang đăng nhập Google…';
+ try{const s=await fetch('https://zpdbodcnhhbbhuyisgjc.supabase.co/auth/v1/settings',{headers:{apikey:'sb_publishable_VR2g0WZkcfVlKY5cftVRow_LRNCjLTk'}}).then(r=>r.json());
+  if(s&&s.external&&!s.external.google){$('#lMsg').textContent='Đăng nhập bằng Google chưa được bật. Vui lòng báo quản trị viên.';b.disabled=false;return}}catch{}
+ const {error}=await SB.auth.signInWithOAuth({provider:'google',options:{redirectTo:HOME,queryParams:{hd:'daidung.vn',prompt:'select_account'}}});
+ if(error){$('#lMsg').textContent='Không mở được đăng nhập Google: '+error.message;b.disabled=false}};
+{const q=new URLSearchParams((location.hash||'').replace(/^#/,'')+'&'+(location.search||'').replace(/^\?/,''));const ed=q.get('error_description');
+ if(ed){$('#lMsg').textContent=/saving new user|database error/i.test(ed)?'Chỉ tài khoản Google @daidung.vn được đăng nhập. Hãy chọn đúng tài khoản công ty.':'Đăng nhập Google không thành công: '+ed;history.replaceState(null,'',HOME)}}
+$('#wRe').onclick=()=>{$('#wMsg').textContent='Đang kiểm tra…';load().catch(err=>{$('#wMsg').textContent='Lỗi: '+err.message})};
+$('#wOut').onclick=async()=>{await SB.auth.signOut();try{indexedDB.deleteDatabase('ddk_kho')}catch{}location.replace(HOME)};
 $('#lForgot').onclick=async()=>{const m=$('#lEmail').value.trim();if(!okMail(m)){$('#lMsg').textContent='Nhập email @daidung.vn vào ô Email trước.';return}
  const {error}=await SB.auth.resetPasswordForEmail(m,{redirectTo:HOME});$('#lMsg').textContent=error?'Lỗi: '+error.message:'Đã gửi link đặt lại mật khẩu tới '+m+'.'};
 SB.auth.onAuthStateChange(async ev=>{if(ev==='PASSWORD_RECOVERY'){const np=prompt?null:null;$('#login').style.display='grid';$('#lf').innerHTML='<p class="lbl">Đặt mật khẩu mới</p><div class="form" style="grid-template-columns:1fr"><label>Mật khẩu mới<span class="pw"><input id="np" type="password" minlength="8" required><button type="button" class="eye" data-for="np" aria-label="Hiện mật khẩu" title="Hiện mật khẩu"></button></span></label></div><button class="btn big" type="submit">Lưu mật khẩu</button><div id="lMsg" class="sm"></div>';bindEyes();$('#lf').onsubmit=async e=>{e.preventDefault();const {error}=await SB.auth.updateUser({password:$('#np').value});$('#lMsg').textContent=error?'Lỗi: '+error.message:'Đã đổi mật khẩu.';if(!error)setTimeout(()=>location.replace(HOME),1200)}}});
@@ -619,12 +648,40 @@ async function push(rows,label){
 async function vSupabase(){
  $('#ttl').textContent='Dữ liệu & tài khoản';const {data:{user}}=await SB.auth.getUser();
  const {data:tt}=await SB.from('v_tinh_trang').select('*');
- $('#view').innerHTML=`<div class="grid2"><div class="card"><h3 style="margin-top:0">Tài khoản</h3><p>Đang đăng nhập: <b>${esc(user&&user.email)}</b></p><div class="row"><button class="btn ghost" id="reload">Tải lại dữ liệu</button><button class="btn" id="logout">Đăng xuất</button></div></div>
+ $('#view').innerHTML=`<div class="grid2"><div class="card"><h3 style="margin-top:0">Tài khoản</h3><p>Đang đăng nhập: <b>${esc(user&&user.email)}</b></p><p class="sm">Vai trò: ${ME.admin?'Quản trị viên':'Nhân viên đã được duyệt'}</p><div class="row"><button class="btn ghost" id="reload">Tải lại dữ liệu</button><button class="btn" id="logout">Đăng xuất</button></div></div>
  <div class="card"><h3 style="margin-top:0">Nguồn dữ liệu</h3><p>Dữ liệu lấy từ Supabase (dự án kho-an-ha-chung-tu), đọc từ 2 thư mục Google Drive. Việc quét Drive, chuyển dữ liệu và xuất PDF gộp được thực hiện trong bản nội bộ trên Claude.</p></div></div>
- <h3>Tình trạng theo loại chứng từ</h3><div id="tt"></div>`;
+ ${ME.admin?'<h3 style="margin-top:22px">Duyệt tài khoản</h3><div id="tkBox"><div class="empty">Đang tải danh sách tài khoản…</div></div>':''}<h3>Tình trạng theo loại chứng từ</h3><div id="tt"></div>`;
  $('#tt').innerHTML=listTbl(['Loại','Số chứng từ','Thiếu ngày','Thiếu dự án','Thiếu NCC','Chưa OCR'],(tt||[]).map(x=>[TY[x.loai]||x.loai,+x.so_chung_tu,+x.thieu_ngay,+x.thieu_du_an,+x.thieu_ncc,+x.chua_ocr]));
  $('#logout').onclick=async()=>{await SB.auth.signOut();try{indexedDB.deleteDatabase('ddk_kho')}catch{}location.reload()};
  $('#reload').onclick=async()=>{await IDB.set('docs',null);location.reload()};
+ if(ME.admin)renderAccounts();
+}
+async function renderAccounts(){
+ const box=$('#tkBox');if(!box)return;
+ const [r1,r2,r3]=await Promise.all([SB.from('tai_khoan').select('id,email,ho_ten,trang_thai,la_quan_tri,dang_ky_luc,duyet_luc,duyet_boi').order('dang_ky_luc',{ascending:false}),SB.from('cai_dat').select('tu_dong_duyet').maybeSingle(),SB.auth.getUser()]);
+ if(r1.error){box.innerHTML='<div class="notice">Không tải được danh sách tài khoản: '+esc(r1.error.message)+'</div>';return}
+ const me=r3.data&&r3.data.user&&r3.data.user.id,auto=!!(r2.data&&r2.data.tu_dong_duyet);
+ const TT={cho_duyet:'<span class="tag w">Chờ duyệt</span>',da_duyet:'<span class="tag g">Đã duyệt</span>',tu_choi:'<span class="tag">Từ chối</span>'};
+ const ord={cho_duyet:0,da_duyet:1,tu_choi:2},L=[...(r1.data||[])].sort((a,b)=>ord[a.trang_thai]-ord[b.trang_thai]);
+ const n=L.filter(x=>x.trang_thai==='cho_duyet').length;
+ const fdt=s=>s?new Date(s).toLocaleString('vi-VN',{dateStyle:'short',timeStyle:'short'}):'—';
+ box.innerHTML=`<div class="card" style="margin-bottom:12px"><label style="display:flex;gap:10px;align-items:flex-start;cursor:pointer"><input type="checkbox" id="tkAuto" ${auto?'checked':''} style="margin-top:3px"><span><b>Tự động duyệt</b> mọi tài khoản Google @daidung.vn khi đăng nhập lần đầu</span></label><div class="sm" style="margin-top:6px">${auto?'Đang bật: người mới xem được dữ liệu ngay.':'Đang tắt: người mới phải chờ bạn bấm Duyệt.'} ${n?'Hiện có <b>'+n+'</b> tài khoản chờ duyệt.':'Không có tài khoản nào đang chờ.'}</div></div>`+
+  `<div style="overflow:auto"><table><thead><tr><th>Họ tên / Email</th><th>Trạng thái</th><th>Đăng ký</th><th>Người duyệt</th><th></th></tr></thead><tbody>`+
+  L.map(x=>{const self=x.id===me,b=[];
+   if(x.trang_thai!=='da_duyet')b.push(`<button class="btn" data-tk="${x.id}" data-st="da_duyet">Duyệt</button>`);
+   if(!self&&x.trang_thai!=='tu_choi')b.push(`<button class="btn ghost" data-tk="${x.id}" data-st="tu_choi">${x.trang_thai==='da_duyet'?'Khoá':'Từ chối'}</button>`);
+   if(!self&&x.trang_thai==='da_duyet')b.push(`<button class="btn ghost" data-tk="${x.id}" data-qt="${x.la_quan_tri?0:1}">${x.la_quan_tri?'Bỏ quyền quản trị':'Cấp quyền quản trị'}</button>`);
+   return `<tr><td><b>${esc(x.ho_ten||'—')}</b><div class="sm">${esc(x.email)}${self?' (bạn)':''}</div></td><td>${TT[x.trang_thai]||esc(x.trang_thai)}${x.la_quan_tri?' <span class="tag">Quản trị</span>':''}</td><td class="sm">${fdt(x.dang_ky_luc)}</td><td class="sm">${esc(x.duyet_boi||'—')}${x.duyet_luc?'<br>'+fdt(x.duyet_luc):''}</td><td><div class="row" style="margin:0;gap:6px;flex-wrap:nowrap">${b.join('')}</div></td></tr>`}).join('')+`</tbody></table></div>`;
+ $('#tkAuto').onchange=async e=>{const v=e.target.checked;
+  if(v&&!confirm('Bật tự động duyệt: mọi tài khoản Google @daidung.vn sẽ xem được dữ liệu ngay khi đăng nhập lần đầu. Tiếp tục?')){e.target.checked=false;return}
+  const {error}=await SB.from('cai_dat').update({tu_dong_duyet:v}).eq('id',true);
+  if(error){toast('Không lưu được: '+error.message);e.target.checked=!v}else{toast(v?'Đã bật tự động duyệt':'Đã tắt tự động duyệt');renderAccounts()}};
+ box.onclick=async e=>{const t=e.target.closest('button[data-tk]');if(!t)return;
+  const ch=t.dataset.st?{trang_thai:t.dataset.st}:{la_quan_tri:t.dataset.qt==='1'};
+  if(ch.trang_thai==='tu_choi'&&!confirm('Chặn tài khoản này xem dữ liệu?'))return;
+  t.disabled=true;const {error}=await SB.from('tai_khoan').update(ch).eq('id',t.dataset.tk);
+  toast(error?'Không cập nhật được: '+error.message:'Đã cập nhật tài khoản');renderAccounts()};
+ setBadge(n);
 }
 
 /* ---------- Hướng dẫn ---------- */
@@ -636,7 +693,7 @@ function vGuide(){
  ['Lọc theo thời gian',`<ol><li>Ngày: <i>24/10/2025</i> → ra trọn tệp ngày kèm nút xuất bảng kê.</li><li>Tháng: <i>10/2025</i> hoặc <i>tháng 10 2025</i>. Năm: <i>2024</i>.</li><li>Có thể kết hợp: <i>phiếu xuất 12/2024 nhà ga</i>.</li><li>Dấu <span class="tag w">~</span> cạnh ngày nghĩa là ngày được suy từ số phiếu vì bản quét chưa đọc rõ.</li></ol>`],
  ['Lọc theo nhà cung cấp',`<ol><li>Gõ tên nhà cung cấp, ví dụ <i>Jotun</i>, <i>Messer</i>, <i>Metal One</i>.</li><li>Danh sách đầy đủ ở <b>Quản lý dữ liệu → Nhà cung cấp</b>.</li></ol>`],
  ['Tải và kết xuất hồ sơ',`<ol><li>Mở <b>2. Kết xuất chứng từ</b>, chọn kiểu: phiếu lẻ, dự án, ngày, tháng, năm, nhà cung cấp hoặc kết hợp.</li><li>Kiểm tra bảng xem trước, chọn định dạng: Excel bảng kê (có link từng tệp), CSV, JSON, danh sách link hoặc <b>trọn bộ PDF gốc (.zip)</b>.</li><li>Bấm <b>Kết xuất bộ chứng từ</b> và xác nhận lưu tệp. Tải PDF gốc cần cho phép trang dùng kết nối Google Drive.</li></ol>`],
- ['Đăng nhập & dữ liệu',`<ol><li>Mỗi người dùng tài khoản được cấp (email + mật khẩu).</li><li>Lần đầu đăng nhập, trang tải toàn bộ danh mục từ Supabase và lưu trong trình duyệt; các lần sau mở nhanh.</li><li>Mục <b>4. Dữ liệu &amp; tài khoản</b> có nút Tải lại dữ liệu và Đăng xuất.</li></ol>`],['Chuyển dữ liệu sang Supabase (bản nội bộ trên Claude)',`<ol><li>Tạo dự án trên supabase.com (khuyên dùng region Singapore) và kết nối Supabase trong Claude.</li><li>Vào <b>4. Kết nối Supabase</b> → <b>Tải danh sách dự án</b> → chọn dự án → <b>Tạo / kiểm tra bảng</b>.</li><li>Bấm <b>Chuyển toàn bộ chứng từ</b>. Lần sau chỉ cần <b>Đồng bộ dữ liệu mới</b>.</li><li>Dùng <b>Kiểm tra dữ liệu đã chuyển</b> để so số lượng, <b>Kiểm tra dữ liệu lỗi</b> để chuyển lại lô lỗi, <b>Xuất báo cáo</b> để lưu tình trạng.</li></ol>`]];
+ ['Đăng nhập & dữ liệu',`<ol><li>Bấm <b>Đăng nhập bằng Google</b> và chọn tài khoản công ty @daidung.vn.</li><li>Lần đầu đăng nhập, tài khoản chờ quản trị viên duyệt. Quản trị viên duyệt ở mục <b>4. Dữ liệu &amp; tài khoản → Duyệt tài khoản</b>.</li><li>Lần đầu đăng nhập, trang tải toàn bộ danh mục từ Supabase và lưu trong trình duyệt; các lần sau mở nhanh.</li><li>Mục <b>4. Dữ liệu &amp; tài khoản</b> có nút Tải lại dữ liệu và Đăng xuất.</li></ol>`],['Chuyển dữ liệu sang Supabase (bản nội bộ trên Claude)',`<ol><li>Tạo dự án trên supabase.com (khuyên dùng region Singapore) và kết nối Supabase trong Claude.</li><li>Vào <b>4. Kết nối Supabase</b> → <b>Tải danh sách dự án</b> → chọn dự án → <b>Tạo / kiểm tra bảng</b>.</li><li>Bấm <b>Chuyển toàn bộ chứng từ</b>. Lần sau chỉ cần <b>Đồng bộ dữ liệu mới</b>.</li><li>Dùng <b>Kiểm tra dữ liệu đã chuyển</b> để so số lượng, <b>Kiểm tra dữ liệu lỗi</b> để chuyển lại lô lỗi, <b>Xuất báo cáo</b> để lưu tình trạng.</li></ol>`]];
  $('#view').innerHTML=`<div class="notice ok">Dữ liệu gốc trên Google Drive chỉ được đọc – hệ thống không di chuyển, sửa hay xoá tệp gốc.</div>`+G.map((g,i)=>`<details ${i?'':'open'}><summary>${g[0]}</summary><div class="bd">${g[1]}</div></details>`).join('');
 }
 
