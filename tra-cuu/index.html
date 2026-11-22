@@ -171,7 +171,7 @@ details ol{padding-left:18px;margin:6px 0}
   <nav class="nav" id="nav">
    <button data-v="tra-cuu"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>1. TRA CỨU CHỨNG TỪ</button>
    <button data-v="ket-xuat"><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v3h16v-3"/></svg>2. KẾT XUẤT CHỨNG TỪ</button>
-   <button data-v="du-lieu"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>3. QUẢN LÝ DỮ LIỆU<span class="bd" id="bdN">…</span></button>
+   <button data-v="du-lieu" id="navDL" style="display:none"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>3. QUẢN LÝ DỮ LIỆU<span class="bd" id="bdN">…</span></button>
    <button data-v="supabase"><svg viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>4. DỮ LIỆU &amp; TÀI KHOẢN<span class="bd" id="bdTK" style="display:none"></span></button>
    <button data-v="huong-dan"><svg viewBox="0 0 24 24"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M8 7h7M8 11h5"/></svg>5. HƯỚNG DẪN SỬ DỤNG</button>
   </nav>
@@ -246,7 +246,7 @@ let ME={email:'',admin:false};
 async function checkAccount(session){
  const em=session.user.email||'';
  const {data:tk,error}=await SB.from('tai_khoan').select('trang_thai,la_quan_tri').eq('id',session.user.id).maybeSingle();
- if(!error&&tk&&tk.trang_thai==='da_duyet'){ME={email:em,admin:!!tk.la_quan_tri};$('#wait').style.display='none';if(ME.admin)pendingBadge(true);return true}
+ if(!error&&tk&&tk.trang_thai==='da_duyet'){ME={email:em,admin:!!tk.la_quan_tri};$('#wait').style.display='none';$('#navDL').style.display=ME.admin?'':'none';if(ME.admin)pendingBadge(true);return true}
  ME={email:em,admin:false};
  $('#wMsg').textContent=error?'Không kiểm tra được tài khoản: '+error.message
   :!/@daidung\.vn$/i.test(em)?'Tài khoản '+em+' không thuộc tên miền @daidung.vn nên không dùng được hệ thống. Bấm Đăng xuất rồi chọn tài khoản công ty.'
@@ -703,7 +703,7 @@ function vGuide(){
 
 /* ---------- Điều hướng ---------- */
 const VIEWS={'tra-cuu':vSearch,'ket-xuat':vExport,'du-lieu':()=>vData(),'supabase':vSupabase,'huong-dan':vGuide};
-function route(){const v=(location.hash||'#tra-cuu').slice(1);const fn=VIEWS[v]||vSearch;document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===(VIEWS[v]?v:'tra-cuu')));$('#side').classList.remove('open');if(D.length)fn()}
+function route(){let v=(location.hash||'#tra-cuu').slice(1);if(v==='du-lieu'&&!ME.admin)v='tra-cuu';const fn=VIEWS[v]||vSearch;document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===(VIEWS[v]?v:'tra-cuu')));$('#side').classList.remove('open');if(D.length)fn()}
 $('#nav').onclick=e=>{const b=e.target.closest('button');if(!b)return;if(location.hash==='#'+b.dataset.v)route();else location.hash=b.dataset.v};
 addEventListener('hashchange',route);$('#burger').onclick=()=>$('#side').classList.toggle('open');
 $('#view').innerHTML='<div class="empty">Đang nạp danh mục chứng từ…</div>';
