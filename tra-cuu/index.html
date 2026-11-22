@@ -519,17 +519,22 @@ async function exportRows(rows,name,kind){
 }
 /* Tải tệp PDF gốc từ Google Drive bằng chính tài khoản Google của người dùng (chỉ đọc) */
 const G_CLIENT='459982877224-h3ov1v90im5no4k0al6og34g1gfhkjv8.apps.googleusercontent.com';
-let GTOK={t:'',exp:0};
+let GTOK={t:'',exp:0},DRV_ERR='';
 async function driveToken(){
  if(GTOK.t&&Date.now()<GTOK.exp-60000)return GTOK.t;
  try{if(!(window.google&&google.accounts&&google.accounts.oauth2))await lib('https://accounts.google.com/gsi/client')}catch{toast('Không tải được thư viện đăng nhập Google.');return ''}
  return new Promise(ok=>{try{const c=google.accounts.oauth2.initTokenClient({client_id:G_CLIENT,scope:'https://www.googleapis.com/auth/drive.readonly',hint:ME.email||undefined,prompt:'',
   callback:r=>{if(r&&r.access_token){GTOK={t:r.access_token,exp:Date.now()+(+r.expires_in||3600)*1000};ok(r.access_token)}else{toast('Chưa cấp quyền đọc Google Drive nên chưa tải được PDF.',6000);ok('')}},
   error_callback:()=>{toast('Cửa sổ cấp quyền Google bị đóng hoặc bị chặn. Hãy cho phép cửa sổ bật lên rồi thử lại.',7000);ok('')}});c.requestAccessToken()}catch{ok('')}})}
+function drvMsg(){const e=DRV_ERR;DRV_ERR='';
+ if(/has not been used|is disabled|accessNotConfigured|SERVICE_DISABLED/i.test(e))return 'Không lấy được PDF: Google Drive API chưa được bật trong project Kho An Ha. Báo quản trị viên bật Drive API.';
+ if(/^404/.test(e))return 'Không lấy được PDF: tài khoản của bạn chưa có quyền xem thư mục chứng từ trên Drive. Nhờ quản trị viên chia sẻ thư mục.';
+ if(/^40[13]/.test(e))return 'Không lấy được PDF: chưa cấp quyền xem Google Drive (nhớ tick ô "Xem tệp trên Google Drive"). Tải lại trang (F5) rồi thử lại. Chi tiết: '+e.slice(0,160);
+ return 'Không lấy được PDF nào từ Drive.'+(e?' Chi tiết: '+e.slice(0,160):'')}
 function b64OfBuf(buf){const u=new Uint8Array(buf);let s='';for(let i=0;i<u.length;i+=32768)s+=String.fromCharCode.apply(null,u.subarray(i,i+32768));return btoa(s)}
 async function driveMcp(){const tk=await driveToken();if(!tk)return null;
  return {callTool:async(_s,_t,{fileId})=>{const r=await fetch('https://www.googleapis.com/drive/v3/files/'+encodeURIComponent(fileId)+'?alt=media&supportsAllDrives=true',{headers:{Authorization:'Bearer '+tk}});
-  if(r.status===401){GTOK={t:'',exp:0}}if(!r.ok)throw new Error('HTTP '+r.status);return {data:b64OfBuf(await r.arrayBuffer())}}}}
+  if(r.status===401){GTOK={t:'',exp:0}}if(!r.ok){let m='';try{const j=await r.json();m=(j.error&&j.error.message)||''}catch{}DRV_ERR=r.status+' '+m;throw new Error('HTTP '+r.status)}return {data:b64OfBuf(await r.arrayBuffer())}}}}
 async function zipPdf(rows,name){
  const mcp=await driveMcp();if(!mcp)return;
  if(rows.length>60&&!(await ask(`Bộ này có ${rows.length} tệp PDF, tải có thể mất vài phút. Tiếp tục?`)))return;
@@ -576,7 +581,7 @@ async function mergePdf(rows,name,label){
   try{const res=await mcp.callTool('Google Drive','download_file_content',{fileId:r.i});const b64=findB64(res);if(!b64)throw 0;
    const bytes=Uint8Array.from(atob(b64),c=>c.charCodeAt(0));const src=await PDFLib.PDFDocument.load(bytes,{ignoreEncryption:true});
    const pages=await out.copyPages(src,src.getPageIndices());pages.forEach(p=>out.addPage(p));ok++}catch{bad.push(r.s)}}
- if(!ok){toast('Không lấy được PDF nào từ Drive.',6000);return}
+ if(!ok){toast(drvMsg(),12000);return}
  const data=await out.save();if(PDFPREV){const cb=PDFPREV;PDFPREV=null;$('#toast').style.display='none';cb(new Blob([data],{type:'application/pdf'}),ok,bad);return}log('Kết xuất',name+' (PDF trọn bộ)',ok);await save((sorted.length>1?'Bo_Chung_Tu_':'')+name+'.pdf',new Blob([data]));
  if(bad.length)toast(`${bad.length} phiếu không gộp được: ${bad.slice(0,8).join(', ')}${bad.length>8?'…':''}`,9000);
 }
