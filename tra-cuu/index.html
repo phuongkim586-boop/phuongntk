@@ -178,7 +178,7 @@ details ol{padding-left:18px;margin:6px 0}
   <div class="sidefoot" id="sidefoot">Đang nạp danh mục chứng từ…</div>
  </aside>
  <main>
-  <div class="top"><button class="burger" id="burger" aria-label="Mở menu">☰</button><h1 id="ttl">Tra cứu chứng từ kho</h1><div class="meta" id="meta"></div><button class="btn ghost" id="qrBtn" title="Mã QR mở trang trên điện thoại" style="min-height:40px;padding:0 12px"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M3 3h8v8H3zm2 2v4h4V5zm8-2h8v8h-8zm2 2v4h4V5zM3 13h8v8H3zm2 2v4h4v-4zm8-2h2v2h-2zm2 2h2v2h-2zm2-2h4v2h-4zm2 2h2v4h-2zm-6 2h2v4h-2zm4 2h2v2h-2z"/></svg>QR</button></div>
+  <div class="top"><button class="burger" id="burger" aria-label="Mở menu">☰</button><h1 id="ttl">Tra cứu chứng từ kho</h1><div class="meta" id="meta"></div><div id="who" style="display:none;margin-left:auto;text-align:right;font-size:12.5px;line-height:1.35;color:var(--mut);white-space:nowrap"><b id="whoMail" style="color:var(--ink)"></b><br><span id="whoTz"></span></div><button class="btn ghost" id="qrBtn" title="Mã QR mở trang trên điện thoại" style="min-height:40px;padding:0 12px"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M3 3h8v8H3zm2 2v4h4V5zm8-2h8v8h-8zm2 2v4h4V5zM3 13h8v8H3zm2 2v4h4v-4zm8-2h2v2h-2zm2 2h2v2h-2zm2-2h4v2h-4zm2 2h2v4h-2zm-6 2h2v4h-2zm4 2h2v2h-2z"/></svg>QR</button></div>
   <div class="wrap" id="view"></div>
  </main>
 </div>
@@ -246,7 +246,7 @@ let ME={email:'',admin:false};
 async function checkAccount(session){
  const em=session.user.email||'';
  const {data:tk,error}=await SB.from('tai_khoan').select('trang_thai,la_quan_tri').eq('id',session.user.id).maybeSingle();
- if(!error&&tk&&tk.trang_thai==='da_duyet'){ME={email:em,admin:!!tk.la_quan_tri};$('#wait').style.display='none';$('#navDL').style.display=ME.admin?'':'none';if(ME.admin)pendingBadge(true);return true}
+ if(!error&&tk&&tk.trang_thai==='da_duyet'){ME={email:em,admin:!!tk.la_quan_tri};$('#wait').style.display='none';showWho();$('#navDL').style.display=ME.admin?'':'none';if(ME.admin)pendingBadge(true);return true}
  ME={email:em,admin:false};
  $('#wMsg').textContent=error?'Không kiểm tra được tài khoản: '+error.message
   :!/@daidung\.vn$/i.test(em)?'Tài khoản '+em+' không thuộc tên miền @daidung.vn nên không dùng được hệ thống. Bấm Đăng xuất rồi chọn tài khoản công ty.'
@@ -254,6 +254,11 @@ async function checkAccount(session){
   :tk.trang_thai==='tu_choi'?'Tài khoản '+em+' chưa được cấp quyền xem dữ liệu. Liên hệ quản trị viên nếu cần.'
   :'Tài khoản '+em+' đã đăng ký và đang chờ quản trị viên duyệt. Khi được duyệt, bấm "Kiểm tra lại".';
  $('#wait').style.display='grid';$('#view').innerHTML='';return false}
+function showWho(){const w=$('#who');if(!w)return;$('#whoMail').textContent=ME.email+(ME.admin?' · Quản trị':'');
+ const tz=(()=>{try{return Intl.DateTimeFormat().resolvedOptions().timeZone}catch{return ''}})();
+ const tick=()=>{const d=new Date(),o=-d.getTimezoneOffset(),h=Math.trunc(Math.abs(o)/60),m=Math.abs(o)%60;
+  $('#whoTz').textContent=d.toLocaleString('vi-VN',{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit',year:'numeric'})+' · GMT'+(o<0?'-':'+')+h+(m?':'+String(m).padStart(2,'0'):'')+(tz?' ('+tz+')':'')};
+ tick();clearInterval(showWho._t);showWho._t=setInterval(tick,30000);w.style.display='block'}
 function setBadge(n){const b=$('#bdTK');if(!b)return;b.textContent=n||'';b.style.display=n?'':'none'}
 async function pendingBadge(showToast){if(!ME.admin)return;const {count}=await SB.from('tai_khoan').select('id',{count:'exact',head:true}).eq('trang_thai','cho_duyet');setBadge(count||0);if(showToast&&count)toast('Có '+count+' tài khoản đang chờ duyệt (mục 4. Dữ liệu & tài khoản)',6000)}
 async function load(){
