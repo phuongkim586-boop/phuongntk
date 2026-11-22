@@ -550,6 +550,7 @@ async function coverPages(out,rows,label){
   v.forEach((t,k)=>pg.drawText(fit(t,(cols[k+1]||W-M)-cols[k]-6,9,font),{x:cols[k],y,size:9,font,color:ink}));
   y-=13.4});
 }
+let PDFPREV=null;
 async function mergePdf(rows,name,label){
  const mcp=await driveMcp();if(!mcp)return;
  if(rows.length>60&&!(await ask(`Bộ này có ${rows.length} tệp PDF, gộp có thể mất vài phút. Tiếp tục?`)))return;
@@ -562,7 +563,7 @@ async function mergePdf(rows,name,label){
    const bytes=Uint8Array.from(atob(b64),c=>c.charCodeAt(0));const src=await PDFLib.PDFDocument.load(bytes,{ignoreEncryption:true});
    const pages=await out.copyPages(src,src.getPageIndices());pages.forEach(p=>out.addPage(p));ok++}catch{bad.push(r.s)}}
  if(!ok){toast('Không lấy được PDF nào từ Drive.',6000);return}
- const data=await out.save();log('Kết xuất',name+' (PDF trọn bộ)',ok);await save((sorted.length>1?'Bo_Chung_Tu_':'')+name+'.pdf',new Blob([data]));
+ const data=await out.save();if(PDFPREV){const cb=PDFPREV;PDFPREV=null;$('#toast').style.display='none';cb(new Blob([data],{type:'application/pdf'}),ok,bad);return}log('Kết xuất',name+' (PDF trọn bộ)',ok);await save((sorted.length>1?'Bo_Chung_Tu_':'')+name+'.pdf',new Blob([data]));
  if(bad.length)toast(`${bad.length} phiếu không gộp được: ${bad.slice(0,8).join(', ')}${bad.length>8?'…':''}`,9000);
 }
 function findB64(o){let best=null;const walk=x=>{if(!x)return;if(typeof x==='string'){if(x.length>200&&/^[A-Za-z0-9+/=\s]+$/.test(x.slice(0,400))&&(!best||x.length>best.length))best=x}else if(typeof x==='object')for(const v of Object.values(x))walk(v)};walk(o);return best&&best.replace(/\s/g,'')}
@@ -607,11 +608,20 @@ function vExport(){
   $('#dlgB').innerHTML=`<div class="notice">Định dạng: <b>${esc(fmL)}</b>. Bỏ tick những chứng từ không muốn kết xuất.</div>
   <div class="row" style="margin:0 0 8px"><label class="sm" style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" id="pvAll" checked> Chọn tất cả</label><span class="sm" id="pvN"></span></div>
   <div style="max-height:55vh;overflow:auto;border:1px solid var(--line);border-radius:8px"><table><thead><tr><th></th><th>STT</th><th>Số phiếu</th><th>Ngày</th><th>Loại</th><th class="hide-s">Dự án / công trình</th><th class="hide-s">NCC / bên nhận</th><th class="hide-s">Tệp gốc</th></tr></thead><tbody>${R0.map((r,i)=>`<tr><td><input type="checkbox" class="pvC" data-i="${i}" checked></td><td>${i+1}</td><td><b>${esc(r.s)}</b></td><td style="white-space:nowrap">${fd(r.d)}</td><td><span class="tag">${esc(r.l)}</span></td><td class="hide-s">${esc((r.m?r.m+' ':'')+(r.p||''))}</td><td class="hide-s">${esc(r.n||r.b||'')}</td><td class="hide-s sm">${esc(r.f||'')}</td></tr>`).join('')}</tbody></table></div>
-  <div class="row"><button class="btn" id="pvGo">Xác nhận kết xuất</button><button class="btn ghost" id="pvNo">Quay lại</button></div>`;
+  <div class="row"><button class="btn" id="pvGo">Xác nhận kết xuất</button><button class="btn ghost" id="pvPdf">Xem trước trọn bộ (PDF)</button><button class="btn ghost" id="pvNo">Quay lại</button></div>`;
   const cnt=()=>{const n=$('#dlgB').querySelectorAll('.pvC:checked').length;$('#pvN').textContent=`Đã chọn ${fmt(n)}/${fmt(R0.length)} chứng từ`;$('#pvGo').disabled=!n;$('#pvAll').checked=n===R0.length};
   $('#dlgB').querySelectorAll('.pvC').forEach(c=>c.onchange=cnt);
   $('#pvAll').onchange=e=>{$('#dlgB').querySelectorAll('.pvC').forEach(c=>c.checked=e.target.checked);cnt()};
   $('#pvNo').onclick=()=>$('#dlg').classList.remove('on');
+  $('#pvPdf').onclick=()=>{const R=[...$('#dlgB').querySelectorAll('.pvC:checked')].map(c=>R0[+c.dataset.i]);if(!R.length)return;
+   PDFPREV=(blob,ok,bad)=>{const u=URL.createObjectURL(blob);
+    $('#dlgT').textContent=`Xem trước trọn bộ: ${fmt(ok)} phiếu`;
+    $('#dlgB').innerHTML=`${bad.length?`<div class="notice">${bad.length} phiếu không lấy được PDF: ${esc(bad.slice(0,8).join(', '))}${bad.length>8?'…':''}</div>`:''}<iframe src="${u}" title="Xem trước trọn bộ" style="width:100%;height:68vh;border:1px solid var(--line);border-radius:8px;background:#fff"></iframe>
+    <div class="row"><button class="btn" id="pvGo2">Kết xuất ${esc(fmL)}</button><a class="btn ghost" href="${u}" target="_blank" rel="noopener">Mở ở tab mới</a><button class="btn ghost" id="pvBack">Quay lại danh sách</button></div>`;
+    $('#dlg').classList.add('on');
+    $('#pvGo2').onclick=()=>{$('#dlg').classList.remove('on');doExport(R)};
+    $('#pvBack').onclick=()=>{$('#dlg').classList.remove('on');$('#xGo').click()}};
+   $('#dlg').classList.remove('on');mergePdf(R,'Xem_truoc','XEM TRUOC TRON BO').finally(()=>{PDFPREV=null})};
   $('#pvGo').onclick=()=>{const R=[...$('#dlgB').querySelectorAll('.pvC:checked')].map(c=>R0[+c.dataset.i]);$('#dlg').classList.remove('on');doExport(R)};
   cnt();$('#dlg').classList.add('on')};
  const doExport=R=>{const v=id=>$('#'+id).value;const nm={one:'Phieu_'+v('xSo'),proj:'Du_an_'+v('xPj').split(' – ')[0],day:'Ngay_'+v('xDay'),month:'Thang_'+v('xMo'),year:'Nam_'+v('xYr'),ncc:'NCC_'+v('xNc').slice(0,30),combo:'Bo_chung_tu_ket_hop'}[mode].replace(/[^\w\-]+/g,'_');$('#xFm').value==='zip'?zipPdf(R,nm):$('#xFm').value==='pdf'?mergePdf(R,nm,({one:'Phieu: ',proj:'Du an: ',day:'Ngay: ',month:'Thang: ',year:'Nam: ',ncc:'Nha cung cap: ',combo:'Bo chung tu ket hop: '}[mode])+asciiU([v('xSo'),v('xPj'),v('xDay'),v('xMo'),v('xYr'),v('xNc')].filter(Boolean).join(' - ')).toUpperCase()):exportRows(R,nm,$('#xFm').value)};
