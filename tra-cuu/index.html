@@ -237,7 +237,21 @@ function extra(r){const t=r.t||'';
  r.nd=OCRF(t,/N[ộo]i dung\s*(?:\(Transaction description\))?\s*:?\s*([^\n]{2,70}?)(?=\s*(?:S[ốóo] xe|Ng[ưu][ờo]i l[ậa]p|Stt|\n|$))/i);
  if(!r.v)r.v=OCRF(t,/S[ốóo] xe(?: giao h[àa]ng)?\s*(?:\(Truck No\.?\))?\s*:?\s*([0-9A-Z][0-9A-Z.\-]{3,12})/i);}
 function prep(r){extra(r);r.fo=typeof r.fo==='number'?FOLDERS[r.fo]:r.fo;r.k=K([r.s,r.f,r.p,r.m,r.w,r.n,r.b,r.g,r.x,r.o,r.q,TY[r.l]].join(' '));r.kt=K(r.t);r.s5=(r.s.match(/(\d+)$/)||[])[1]||'';return r}
+/* Bổ sung tên dự án bị cắt (OCR chỉ đọc dòng đầu) bằng tên đầy đủ của CHÍNH các phiếu khác cùng mã công trình. Không khớp chắc chắn thì giữ nguyên. */
+function fixProj(){
+ const full=c=>c&&!/\.$/.test(c);const by=new Map();
+ for(const r of D){const c=r.m0??r.m,p=((r.p0??r.p)||'').trim();if(!full(c)||!p)continue;const o=by.get(c)||new Map();o.set(p,(o.get(p)||0)+1);by.set(c,o)}
+ const canon=new Map();
+ for(const [c,o] of by){const names=[...o.keys()];const ok=names.filter(n=>!names.some(x=>x.length>n.length&&K(x).startsWith(K(n))));
+  ok.sort((a,b)=>o.get(b)-o.get(a)||b.length-a.length);if(ok.length)canon.set(c,ok[0])}
+ const codes=[...canon.keys()];
+ for(const r of D){if(r.m0===undefined){r.m0=r.m||'';r.p0=r.p||''}const c=r.m0,p=r.p0.trim();let nm='',nc=c;
+  if(full(c)&&canon.has(c)){const t=canon.get(c);if(!p||(K(t).startsWith(K(p))&&t.length>p.length))nm=t}
+  else if(c&&!full(c)&&K(p).length>=10){const cand=codes.filter(x=>x.startsWith(c)&&K(canon.get(x)).startsWith(K(p)));if(cand.length===1){nc=cand[0];nm=canon.get(nc)}}
+  r.m=nm?nc:c;r.p=nm||r.p0;r.k=K([r.s,r.f,r.p,r.m,r.w,r.n,r.b,r.g,r.x,r.o,r.q,TY[r.l]].join(' '))}
+}
 function index(){
+ fixProj();
  byId=new Map(D.map(r=>[r.i,r]));bySo=new Map();for(const r of D){const a=bySo.get(r.s)||[];a.push(r);bySo.set(r.s,a)}
  const pj=new Map(),sp=new Map();
  for(const r of D){if(r.p||r.m){const k=r.m||r.p;const o=pj.get(k)||{m:r.m||'',p:r.p||'',n:0,first:r.d,last:r.d};o.n++;if(r.p&&!o.p)o.p=r.p;if(r.d&&(!o.first||r.d<o.first))o.first=r.d;if(r.d&&r.d>o.last)o.last=r.d;pj.set(k,o)}
@@ -430,7 +444,7 @@ function related(r){
 function detail(r){
  if(!r)return;const {same,byL}=related(r);
  $('#dlgT').innerHTML=`${esc(r.s)} <span class="tag">${esc(TY[r.l]||r.l)}</span>`;
- const kv=[['Số phiếu',r.s],['Loại chứng từ',TY[r.l]],['Ngày lập',fd(r.d)+(r.de?' (ước tính theo số phiếu – OCR chưa đọc rõ ngày)':'')+(r.ds?' (năm đã được chỉnh vì bản quét đọc sai – hãy đối chiếu tệp gốc)':'')],['Mã công trình / WBS',r.m||r.w],['Tên dự án / công trình',r.p],['Nhà cung cấp / người giao',r.n+(r.ni?' (nội bộ)':'')],['Bên nhận / xưởng / đội',r.b],['Diễn giải',r.g],['Loại giao dịch',r.x2||r.x],['Nội dung',r.nd],['Số xe giao hàng',r.v],['Lệnh / PO liên quan',r.o],['Tổng số lượng',r.q],['Tệp gốc',r.f],['Thư mục',r.fo],['Kích thước',r.z?(r.z/1024).toFixed(0)+' KB':''],['Ngày tải lên Drive',fd(r.c)]];
+ const kv=[['Số phiếu',r.s],['Loại chứng từ',TY[r.l]],['Ngày lập',fd(r.d)+(r.de?' (ước tính theo số phiếu – OCR chưa đọc rõ ngày)':'')+(r.ds?' (năm đã được chỉnh vì bản quét đọc sai – hãy đối chiếu tệp gốc)':'')],['Mã công trình / WBS',r.m||r.w],['Tên dự án / công trình',r.p],['Mã / tên dự án đọc từ phiếu (gốc)',(r.p0!==undefined&&(r.p0!==r.p||r.m0!==r.m))?((r.m0?r.m0+' – ':'')+r.p0):''],['Nhà cung cấp / người giao',r.n+(r.ni?' (nội bộ)':'')],['Bên nhận / xưởng / đội',r.b],['Diễn giải',r.g],['Loại giao dịch',r.x2||r.x],['Nội dung',r.nd],['Số xe giao hàng',r.v],['Lệnh / PO liên quan',r.o],['Tổng số lượng',r.q],['Tệp gốc',r.f],['Thư mục',r.fo],['Kích thước',r.z?(r.z/1024).toFixed(0)+' KB':''],['Ngày tải lên Drive',fd(r.c)]];
  $('#dlgB').innerHTML=`<dl class="kv">${kv.filter(x=>x[1]&&x[1]!=='undefined').map(([k,v])=>`<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl>
  <div class="row"><a class="btn" href="${url(r)}" target="_blank" rel="noopener">Mở tệp gốc trên Drive ↗</a><button class="btn ghost" id="exOne">Xuất phiếu này (.xlsx)</button><button class="btn ghost" id="cpSo">Copy số phiếu</button><button class="btn ghost" id="cpLink">Sao chép link</button><button class="btn ghost" id="exOnePdf">Xuất PDF</button></div>
  ${same.length?`<div class="notice">Có ${same.length} tệp khác cùng số phiếu (có thể là bản trùng giữa 2 thư mục): ${same.map(x=>`<a href="${url(x)}" target="_blank" rel="noopener">${esc(x.f)} – ${esc(x.fo)}</a>`).join(', ')}</div>`:''}
