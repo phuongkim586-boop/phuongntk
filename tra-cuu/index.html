@@ -229,7 +229,13 @@ function toast(m,ms=3200){const t=$('#toast');t.textContent=m;t.style.display='b
 function log(a,n,c){const L=ls.get('log',[]);L.unshift({t:new Date().toISOString(),a,n,c});ls.set('log',L.slice(0,500));pushLog(a,n,c)}
 
 /* ---------- Nạp dữ liệu ---------- */
-function prep(r){r.fo=typeof r.fo==='number'?FOLDERS[r.fo]:r.fo;r.k=K([r.s,r.f,r.p,r.m,r.w,r.n,r.b,r.g,r.x,r.o,r.q,TY[r.l]].join(' '));r.kt=K(r.t);r.s5=(r.s.match(/(\d+)$/)||[])[1]||'';return r}
+const OCRF=(t,re)=>{const m=re.exec(t||'');return m?m[1].replace(/\s+/g,' ').trim():''};
+function extra(r){const t=r.t||'';
+ const lg=OCRF(t,/Lo[ạa]i giao d[ịi]ch\s*(?:\(Movement type\))?\s*:?\s*([^\n]{3,70}?)(?=\s*(?:N[ộo]i dung|S[ốóo] xe|Số tham chiếu|\n|$))/i);
+ r.x2=(lg&&lg.length>(r.x||'').length)?lg:(r.x||'');
+ r.nd=OCRF(t,/N[ộo]i dung\s*(?:\(Transaction description\))?\s*:?\s*([^\n]{2,70}?)(?=\s*(?:S[ốóo] xe|Ng[ưu][ờo]i l[ậa]p|Stt|\n|$))/i);
+ if(!r.v)r.v=OCRF(t,/S[ốóo] xe(?: giao h[àa]ng)?\s*(?:\(Truck No\.?\))?\s*:?\s*([0-9A-Z][0-9A-Z.\-]{3,12})/i);}
+function prep(r){extra(r);r.fo=typeof r.fo==='number'?FOLDERS[r.fo]:r.fo;r.k=K([r.s,r.f,r.p,r.m,r.w,r.n,r.b,r.g,r.x,r.o,r.q,TY[r.l]].join(' '));r.kt=K(r.t);r.s5=(r.s.match(/(\d+)$/)||[])[1]||'';return r}
 function index(){
  byId=new Map(D.map(r=>[r.i,r]));bySo=new Map();for(const r of D){const a=bySo.get(r.s)||[];a.push(r);bySo.set(r.s,a)}
  const pj=new Map(),sp=new Map();
@@ -272,7 +278,7 @@ async function load(){
  const {data:last}=await SB.from('chung_tu').select('dong_bo_luc').order('dong_bo_luc',{ascending:false}).limit(1);
  const t=last&&last[0]&&last[0].dong_bo_luc;
  if(cache&&cache.n===count&&cache.t===t)return;
- const COLS='drive_id,so_phieu,loai,ngay,ngay_uoc_tinh,du_an_ma,du_an,wbs,nha_cung_cap,ncc_noi_bo,bo_phan,dien_giai,loai_giao_dich,lenh_po,tong_so_luong,ten_tep,thu_muc,kich_thuoc,ngay_tai_len,co_noi_dung,noi_dung';
+ const COLS='drive_id,so_phieu,loai,ngay,ngay_uoc_tinh,du_an_ma,du_an,wbs,nha_cung_cap,ncc_noi_bo,bo_phan,dien_giai,loai_giao_dich,lenh_po,tong_so_luong,ten_tep,thu_muc,kich_thuoc,ngay_tai_len,co_noi_dung,noi_dung,so_xe';
  const P=1000,pages=Math.ceil(count/P),parts=new Array(pages);let done=0,next=0,shown=!!D.length;
  const prog=()=>{const n=Math.min(done*P,count);$('#sidefoot').innerHTML=`Đang tải dữ liệu… ${fmt(n)}/${fmt(count)}`;if(!shown)$('#view').innerHTML=`<div class="empty">Đang tải dữ liệu chứng từ… ${fmt(n)}/${fmt(count)}</div>`};
  prog();
@@ -314,7 +320,7 @@ const IDB={db:null,open(){return new Promise(ok=>{try{const r=indexedDB.open('dd
  async set(k,v){const db=this.db||await this.open();if(!db)return;return new Promise(ok=>{try{const t=db.transaction('kv','readwrite');t.objectStore('kv').put(v,k);t.oncomplete=ok;t.onerror=ok}catch{ok()}})}};
 function mergeIn(rows){const have=new Set(D.map(r=>r.i));const add=rows.filter(r=>!have.has(r.i));if(add.length){D=D.concat(add.map(prep));index();if((location.hash||'#tra-cuu')!=='#tra-cuu')route()}return add.length}
 function fromRow(x){const o={i:x.drive_id,f:x.ten_tep,fo:x.thu_muc,s:x.so_phieu,l:x.loai,d:x.ngay||'',c:x.ngay_tai_len||'',z:+x.kich_thuoc||0,t:x.noi_dung||''};
- if(x.ngay_uoc_tinh)o.de=1;if(x.du_an_ma)o.m=x.du_an_ma;if(x.du_an)o.p=x.du_an;if(x.wbs)o.w=x.wbs;if(x.nha_cung_cap)o.n=x.nha_cung_cap;if(x.ncc_noi_bo)o.ni=1;if(x.bo_phan)o.b=x.bo_phan;if(x.dien_giai)o.g=x.dien_giai;if(x.loai_giao_dich)o.x=x.loai_giao_dich;if(x.lenh_po)o.o=x.lenh_po;if(x.tong_so_luong)o.q=x.tong_so_luong;if(x.co_noi_dung===false)o.oc=0;return o}
+ if(x.ngay_uoc_tinh)o.de=1;if(x.du_an_ma)o.m=x.du_an_ma;if(x.du_an)o.p=x.du_an;if(x.wbs)o.w=x.wbs;if(x.nha_cung_cap)o.n=x.nha_cung_cap;if(x.ncc_noi_bo)o.ni=1;if(x.bo_phan)o.b=x.bo_phan;if(x.dien_giai)o.g=x.dien_giai;if(x.loai_giao_dich)o.x=x.loai_giao_dich;if(x.lenh_po)o.o=x.lenh_po;if(x.tong_so_luong)o.q=x.tong_so_luong;if(x.co_noi_dung===false)o.oc=0;if(x.so_xe)o.v=x.so_xe;return o}
 async function loadFromSupabase(){return;
  const cache=await IDB.get('docs');if(cache&&cache.rows){const n=mergeIn(cache.rows);if(n)toast(`Đã nạp ${fmt(n)} chứng từ từ bộ nhớ đệm`)}
  const mcp=await claude.use('mcp');if(!mcp||!ls.get('sb',{}).project)return;
@@ -397,7 +403,7 @@ function drawTable(){
  const h=(k,t,c='')=>`<th data-k="${k}" class="${c}">${t}${TBL.sort===k?(dir>0?' ▲':' ▼'):''}</th>`;
  const view=TBL.host==='#rt'?ls.get('view','list'):'list';
  if(view==='grid'&&rows.length){$(host).innerHTML=`<div class="cards">${sl.map(r=>`<div class="cardi" data-id="${r.i}"><div class="h"><span class="so">${hl(r.s,f)}</span><span class="tag">${r.l}</span></div><div class="sm">${fd(r.d)} · ${esc(r.fo.replace('Bo_Phieu_Da_Tach_',''))}</div>${r.m||r.p?`<div class="p"><b>${hl(r.m||'',f)}</b> ${hl(r.p||'',f)}</div>`:''}${r.n||r.b?`<div class="p sm">${hl(r.n||r.b,f)}</div>`:''}${r.g?`<div class="p sm">${hl(r.g.slice(0,80),f)}</div>`:''}<div class="act">${acts(r,'Copy số phiếu')}</div></div>`).join('')}</div>${pager(rows.length,pages)}`;bindTbl(host);return}
- $(host).innerHTML=rows.length?`<div class="tbl"><table class="stack"><thead><tr>${h('s','Số phiếu')}${h('d','Ngày')}${h('l','Loại')}${h('p','Dự án / công trình')}${h('n','NCC / bên nhận','hide-s')}${h('g','Diễn giải','hide-s')}${h('q','Tổng SL','n')}<th style="text-align:right">Thao tác</th></tr></thead><tbody>${sl.map(r=>`<tr data-id="${r.i}"><td><span class="so">${hl(r.s,f)}</span><div class="sm">${esc(r.fo.replace('Bo_Phieu_Da_Tach_',''))}</div></td><td style="white-space:nowrap">${fd(r.d)}${r.de?' <span class="tag w" title="Ngày suy từ số phiếu">~</span>':''}${r.ds?' <span class="tag w" title="Năm đã được chỉnh vì bản quét đọc sai">!</span>':''}</td><td><span class="tag">${r.l}</span></td><td>${r.m?`<b>${hl(r.m,f)}</b><br>`:''}${hl(r.p||'',f)}</td><td class="hide-s">${hl(r.n||r.b||'',f)}</td><td class="hide-s">${hl((r.g||'').slice(0,90),f)}</td><td class="n">${esc(r.q||'')}</td><td>${acts(r,'Copy')}</td></tr>`).join('')}</tbody></table></div>
+ $(host).innerHTML=rows.length?`<div class="tbl"><table class="stack"><thead><tr>${h('s','Số phiếu')}${h('d','Ngày')}${h('l','Loại')}${h('p','Dự án / công trình')}${h('n','NCC / bên nhận','hide-s')}${h('g','Diễn giải','hide-s')}${h('x2','Loại giao dịch','hide-s')}${h('nd','Nội dung','hide-s')}${h('v','Số xe giao hàng','hide-s')}${h('q','Tổng SL','n')}<th style="text-align:right">Thao tác</th></tr></thead><tbody>${sl.map(r=>`<tr data-id="${r.i}"><td><span class="so">${hl(r.s,f)}</span><div class="sm">${esc(r.fo.replace('Bo_Phieu_Da_Tach_',''))}</div></td><td style="white-space:nowrap">${fd(r.d)}${r.de?' <span class="tag w" title="Ngày suy từ số phiếu">~</span>':''}${r.ds?' <span class="tag w" title="Năm đã được chỉnh vì bản quét đọc sai">!</span>':''}</td><td><span class="tag">${r.l}</span></td><td>${r.m?`<b>${hl(r.m,f)}</b><br>`:''}${hl(r.p||'',f)}</td><td class="hide-s">${hl(r.n||r.b||'',f)}</td><td class="hide-s">${hl((r.g||'').slice(0,90),f)}</td><td class="hide-s">${hl(r.x2||r.x||'',f)}</td><td class="hide-s">${hl(r.nd||'',f)}</td><td class="hide-s">${esc(r.v||'')}</td><td class="n">${esc(r.q||'')}</td><td>${acts(r,'Copy')}</td></tr>`).join('')}</tbody></table></div>
  ${pager(rows.length,pages)}`:`<div class="empty">Không có chứng từ phù hợp.</div>`;
  bindTbl(host);
 }
@@ -423,7 +429,7 @@ function related(r){
 function detail(r){
  if(!r)return;const {same,byL}=related(r);
  $('#dlgT').innerHTML=`${esc(r.s)} <span class="tag">${esc(TY[r.l]||r.l)}</span>`;
- const kv=[['Số phiếu',r.s],['Loại chứng từ',TY[r.l]],['Ngày lập',fd(r.d)+(r.de?' (ước tính theo số phiếu – OCR chưa đọc rõ ngày)':'')+(r.ds?' (năm đã được chỉnh vì bản quét đọc sai – hãy đối chiếu tệp gốc)':'')],['Mã công trình / WBS',r.m||r.w],['Tên dự án / công trình',r.p],['Nhà cung cấp / người giao',r.n+(r.ni?' (nội bộ)':'')],['Bên nhận / xưởng / đội',r.b],['Diễn giải',r.g],['Loại giao dịch',r.x],['Lệnh / PO liên quan',r.o],['Tổng số lượng',r.q],['Tệp gốc',r.f],['Thư mục',r.fo],['Kích thước',r.z?(r.z/1024).toFixed(0)+' KB':''],['Ngày tải lên Drive',fd(r.c)]];
+ const kv=[['Số phiếu',r.s],['Loại chứng từ',TY[r.l]],['Ngày lập',fd(r.d)+(r.de?' (ước tính theo số phiếu – OCR chưa đọc rõ ngày)':'')+(r.ds?' (năm đã được chỉnh vì bản quét đọc sai – hãy đối chiếu tệp gốc)':'')],['Mã công trình / WBS',r.m||r.w],['Tên dự án / công trình',r.p],['Nhà cung cấp / người giao',r.n+(r.ni?' (nội bộ)':'')],['Bên nhận / xưởng / đội',r.b],['Diễn giải',r.g],['Loại giao dịch',r.x2||r.x],['Nội dung',r.nd],['Số xe giao hàng',r.v],['Lệnh / PO liên quan',r.o],['Tổng số lượng',r.q],['Tệp gốc',r.f],['Thư mục',r.fo],['Kích thước',r.z?(r.z/1024).toFixed(0)+' KB':''],['Ngày tải lên Drive',fd(r.c)]];
  $('#dlgB').innerHTML=`<dl class="kv">${kv.filter(x=>x[1]&&x[1]!=='undefined').map(([k,v])=>`<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl>
  <div class="row"><a class="btn" href="${url(r)}" target="_blank" rel="noopener">Mở tệp gốc trên Drive ↗</a><button class="btn ghost" id="exOne">Xuất phiếu này (.xlsx)</button><button class="btn ghost" id="cpSo">Copy số phiếu</button><button class="btn ghost" id="cpLink">Sao chép link</button><button class="btn ghost" id="exOnePdf">Xuất PDF</button></div>
  ${same.length?`<div class="notice">Có ${same.length} tệp khác cùng số phiếu (có thể là bản trùng giữa 2 thư mục): ${same.map(x=>`<a href="${url(x)}" target="_blank" rel="noopener">${esc(x.f)} – ${esc(x.fo)}</a>`).join(', ')}</div>`:''}
