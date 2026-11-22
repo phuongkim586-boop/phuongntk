@@ -205,6 +205,7 @@ details ol{padding-left:18px;margin:6px 0}
   <div class="row" style="margin:0"><button type="button" class="btn" id="wRe">Kiểm tra lại</button><button type="button" class="btn ghost" id="wOut">Đăng xuất</button></div>
  </div></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <script>
 // Bản GitHub Pages: chạy ngoài Claude. Tải tệp bằng trình duyệt; không có kết nối Drive/Supabase qua Claude.
 window.claude={use:async n=>n==='downloads'?{save:async({filename,data})=>{const b=data instanceof Blob?data:new Blob([data]);const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=filename;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},2000);return {status:'saved'}}}:null};
@@ -502,8 +503,21 @@ async function exportRows(rows,name,kind){
  const sm={};rows.forEach(r=>{const k=TY[r.l];sm[k]=(sm[k]||0)+1});XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['Loại chứng từ','Số lượng'],...Object.entries(sm)]),'Tong hop');
  const buf=XLSX.write(wb,{type:'array',bookType:'xlsx'});return save(name+'.xlsx',new Blob([buf]));
 }
+/* Tải tệp PDF gốc từ Google Drive bằng chính tài khoản Google của người dùng (chỉ đọc) */
+const G_CLIENT='459982877224-h3ov1v90im5no4k0al6og34g1gfhkjv8.apps.googleusercontent.com';
+let GTOK={t:'',exp:0};
+async function driveToken(){
+ if(GTOK.t&&Date.now()<GTOK.exp-60000)return GTOK.t;
+ try{if(!(window.google&&google.accounts&&google.accounts.oauth2))await lib('https://accounts.google.com/gsi/client')}catch{toast('Không tải được thư viện đăng nhập Google.');return ''}
+ return new Promise(ok=>{try{const c=google.accounts.oauth2.initTokenClient({client_id:G_CLIENT,scope:'https://www.googleapis.com/auth/drive.readonly',hint:ME.email||undefined,prompt:'',
+  callback:r=>{if(r&&r.access_token){GTOK={t:r.access_token,exp:Date.now()+(+r.expires_in||3600)*1000};ok(r.access_token)}else{toast('Chưa cấp quyền đọc Google Drive nên chưa tải được PDF.',6000);ok('')}},
+  error_callback:()=>{toast('Cửa sổ cấp quyền Google bị đóng hoặc bị chặn. Hãy cho phép cửa sổ bật lên rồi thử lại.',7000);ok('')}});c.requestAccessToken()}catch{ok('')}})}
+function b64OfBuf(buf){const u=new Uint8Array(buf);let s='';for(let i=0;i<u.length;i+=32768)s+=String.fromCharCode.apply(null,u.subarray(i,i+32768));return btoa(s)}
+async function driveMcp(){const tk=await driveToken();if(!tk)return null;
+ return {callTool:async(_s,_t,{fileId})=>{const r=await fetch('https://www.googleapis.com/drive/v3/files/'+encodeURIComponent(fileId)+'?alt=media&supportsAllDrives=true',{headers:{Authorization:'Bearer '+tk}});
+  if(r.status===401){GTOK={t:'',exp:0}}if(!r.ok)throw new Error('HTTP '+r.status);return {data:b64OfBuf(await r.arrayBuffer())}}}}
 async function zipPdf(rows,name){
- {toast('Tải trọn bộ PDF chạy trong bản nội bộ trên Claude. Ở đây hãy xuất bảng kê Excel có link từng tệp.',9000);return}
+ const mcp=await driveMcp();if(!mcp)return;
  if(rows.length>60&&!(await ask(`Bộ này có ${rows.length} tệp PDF, tải có thể mất vài phút. Tiếp tục?`)))return;
  try{if(!window.JSZip)await lib('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js')}catch{toast('Không tải được thư viện nén ZIP');return}
  const zip=new JSZip();let ok=0,bad=[];STOP=false;
@@ -537,7 +551,7 @@ async function coverPages(out,rows,label){
   y-=13.4});
 }
 async function mergePdf(rows,name,label){
- const mcp=null;{toast('Xuất PDF trọn bộ chạy trong bản nội bộ trên Claude (cần kết nối Google Drive). Ở đây bạn dùng nút Mở Drive cho từng phiếu hoặc xuất bảng kê Excel có link.',9000);return}
+ const mcp=await driveMcp();if(!mcp)return;
  if(rows.length>60&&!(await ask(`Bộ này có ${rows.length} tệp PDF, gộp có thể mất vài phút. Tiếp tục?`)))return;
  try{if(!window.PDFLib)await lib('https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js')}catch{toast('Không tải được thư viện PDF – chuyển sang tải ZIP');return zipPdf(rows,name)}
  const out=await PDFLib.PDFDocument.create();let ok=0,bad=[];STOP=false;
