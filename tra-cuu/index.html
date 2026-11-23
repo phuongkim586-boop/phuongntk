@@ -819,7 +819,7 @@ async function loadStats(){
 function vStats(){
  $('#ttl').textContent='Thống kê nhập liệu';
  if(!ME.admin){$('#view').innerHTML='<div class="notice">Mục này chỉ dành cho quản trị viên.</div>';return}
- if(!STK){$('#view').innerHTML=`<div class="card"><h3 style="margin-top:0">Thống kê nhập liệu</h3><p>Đọc dữ liệu chứng từ SAP từ sheet <b>${STK_SHEET}</b> của tệp <b>06. SCRIP CẢNH BÁO PR CHƯA NHẬP KHO</b>, đối chiếu với danh mục PDF đã scan.</p><div class="row"><button class="btn" id="stLoad">Tải dữ liệu thống kê</button></div><div id="stMsg" class="sm"></div></div>`;
+ if(!STK){$('#view').innerHTML=`<div class="card"><h3 style="margin-top:0">Thống kê nhập liệu</h3><p>Đọc dữ liệu chứng từ SAP từ sheet <b>${STK_SHEET}</b>, đối chiếu với danh mục PDF đã scan.</p><div class="row"><button class="btn" id="stLoad">Tải dữ liệu thống kê</button></div><div id="stMsg" class="sm"></div></div>`;
   $('#stLoad').onclick=async()=>{$('#stLoad').disabled=true;$('#stMsg').textContent='Đang đọc Google Sheet…';try{await loadStats();vStats()}catch(e){$('#stMsg').innerHTML='<div class="notice">'+esc(e.message)+'</div>';$('#stLoad').disabled=false}};return}
  const A=STK.list,users=[...new Set(A.map(o=>o.u).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'vi'));
  const F=ls.get('stF',{tu:'',den:'',l:'',sc:'',u:'',q:''});
