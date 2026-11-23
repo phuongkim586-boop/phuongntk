@@ -446,14 +446,14 @@ function detail(r){
  $('#dlgT').innerHTML=`${esc(r.s)} <span class="tag">${esc(TY[r.l]||r.l)}</span>`;
  const kv=[['Số phiếu',r.s],['Loại chứng từ',TY[r.l]],['Ngày lập',fd(r.d)+(r.de?' (ước tính theo số phiếu – OCR chưa đọc rõ ngày)':'')+(r.ds?' (năm đã được chỉnh vì bản quét đọc sai – hãy đối chiếu tệp gốc)':'')],['Mã công trình / WBS',r.m||r.w],['Tên dự án / công trình',r.p],['Mã / tên dự án đọc từ phiếu (gốc)',(r.p0!==undefined&&(r.p0!==r.p||r.m0!==r.m))?((r.m0?r.m0+' – ':'')+r.p0):''],['Nhà cung cấp / người giao',r.n+(r.ni?' (nội bộ)':'')],['Bên nhận / xưởng / đội',r.b],['Diễn giải',r.g],['Loại giao dịch',r.x2||r.x],['Nội dung',r.nd],['Số xe giao hàng',r.v],['Lệnh / PO liên quan',r.o],['Tổng số lượng',r.q],['Tệp gốc',r.f],['Thư mục',r.fo],['Kích thước',r.z?(r.z/1024).toFixed(0)+' KB':''],['Ngày tải lên Drive',fd(r.c)]];
  $('#dlgB').innerHTML=`<dl class="kv">${kv.filter(x=>x[1]&&x[1]!=='undefined').map(([k,v])=>`<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl>
- <div class="row"><a class="btn" href="${url(r)}" target="_blank" rel="noopener">Mở tệp gốc trên Drive ↗</a><button class="btn ghost" id="exOne">Xuất phiếu này (.xlsx)</button><button class="btn ghost" id="cpSo">Copy số phiếu</button><button class="btn ghost" id="cpLink">Sao chép link</button><button class="btn ghost" id="exOnePdf">Xuất PDF</button></div>
+ <div class="row"><a class="btn" href="${url(r)}" target="_blank" rel="noopener">Mở tệp gốc trên Drive ↗</a><button class="btn ghost" id="exOne">Xuất phiếu này (.xlsx)</button><button class="btn ghost" id="cpSo">Copy số phiếu</button><button class="btn ghost" id="cpLink">Sao chép link</button><button class="btn ghost" id="exView">Xem chứng từ (xoay đúng chiều)</button><button class="btn ghost" id="exOnePdf">Xuất PDF</button></div>
  ${same.length?`<div class="notice">Có ${same.length} tệp khác cùng số phiếu (có thể là bản trùng giữa 2 thư mục): ${same.map(x=>`<a href="${url(x)}" target="_blank" rel="noopener">${esc(x.f)} – ${esc(x.fo)}</a>`).join(', ')}</div>`:''}
  ${byL.length?`<h4 style="margin:18px 0 6px">Chứng từ cùng lệnh/PO (${byL.length})</h4><div id="relT"></div>`:''}
  <h4 style="margin:18px 0 6px">Nội dung đọc được từ chứng từ (OCR)</h4><div class="ocr">${r.oc===0?'Tệp chưa có nội dung OCR – mở tệp gốc để xem.':esc(r.t)}…</div>`;
  $('#dlg').classList.add('on');
  qrSvg(url(r)).then(svg=>{const b=$('#dlgB');if(b&&$('#exOne')){const d=document.createElement('div');d.className='qmini';d.innerHTML=`<div class="q">${svg}</div>QR mở tệp gốc`;b.prepend(d)}}).catch(()=>{});
  $('#exOne').onclick=()=>exportRows([r],'Phieu_'+r.s.replace(/\W+/g,'_'),'xlsx');
- $('#cpSo').onclick=()=>copyTxt(r.s);$('#exOnePdf').onclick=()=>mergePdf([r],r.s.replace(/\W+/g,'_'));
+ $('#cpSo').onclick=()=>copyTxt(r.s);$('#exOnePdf').onclick=()=>mergePdf([r],r.s.replace(/\W+/g,'_'));$('#exView').onclick=()=>{PDFPREV=(blob)=>pdfViewer(blob,{title:'Chứng từ '+r.s,name:r.s.replace(/\W+/g,'_'),buttons:`<a class="btn ghost" href="${url(r)}" target="_blank" rel="noopener">Mở trên Drive ↗</a>`});mergePdf([r],r.s.replace(/\W+/g,'_')).finally(()=>{PDFPREV=null})};
  $('#cpLink').onclick=async()=>{try{await navigator.clipboard.writeText(url(r));toast('Đã sao chép link tệp gốc')}catch{toast('Không sao chép được – link: '+url(r),6000)}};
  if(byL.length){const host='#relT';TBL={rows:byL,page:0,sort:'d',dir:-1,f:{words:[]},host};drawTable()}
 }
@@ -570,6 +570,35 @@ async function coverPages(out,rows,label){
   y-=13.4});
 }
 let PDFPREV=null;
+/* Trình xem PDF: xoay từng trang hoặc cả bộ, tải về bản đã xoay */
+async function pdfViewer(blob,{title,top='',buttons='',name='Chung_tu'}={}){
+ try{if(!window.pdfjsLib){await lib('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js');pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'}}
+ catch{toast('Không tải được trình xem PDF.');return}
+ const bytes=new Uint8Array(await blob.arrayBuffer());
+ const doc=await pdfjsLib.getDocument({data:bytes.slice()}).promise,N=doc.numPages;
+ let saved={};try{saved=JSON.parse(localStorage.getItem('ddk_rot')||'{}')}catch{}
+ const rot=Array(N).fill(0);
+ $('#dlgT').textContent=title||'Xem chứng từ';
+ $('#dlgB').innerHTML=`${top}<div class="row" style="margin:0 0 8px;gap:6px;flex-wrap:wrap"><b class="sm">Xoay cả bộ:</b><button class="btn ghost" data-all="-90" title="Xoay trái 90°">⟲ Trái</button><button class="btn ghost" data-all="90" title="Xoay phải 90°">⟳ Phải</button><button class="btn ghost" data-all="180">↻ 180°</button><button class="btn ghost" data-all="0">Về gốc</button><span class="sm" id="pvRotN"></span></div>
+  <div id="pvPages" style="height:64vh;overflow:auto;border:1px solid var(--line);border-radius:8px;background:#eceff3;padding:10px;display:grid;gap:12px;justify-items:center"></div>
+  <div class="row">${buttons}<button class="btn ghost" id="pvDlRot">Tải PDF đã xoay</button></div>`;
+ const box=$('#pvPages');
+ box.innerHTML=Array.from({length:N},(_,i)=>`<div class="pvPg" data-i="${i}" style="background:#fff;border-radius:6px;box-shadow:0 1px 4px rgba(0,0,0,.15);padding:6px;max-width:100%"><div class="row" style="margin:0 0 6px;gap:6px;justify-content:space-between"><span class="sm">Trang ${i+1}/${N}</span><span><button class="btn ghost" data-pg="${i}" data-r="-90" title="Xoay trái">⟲</button> <button class="btn ghost" data-pg="${i}" data-r="90" title="Xoay phải">⟳</button></span></div><canvas style="max-width:100%;display:block;margin:auto"></canvas></div>`).join('');
+ const W=Math.min(900,box.clientWidth-40)||700,done=new Set();
+ const draw=async i=>{const pg=await doc.getPage(i+1),r=(pg.rotate+rot[i]+360)%360,v0=pg.getViewport({scale:1,rotation:r}),sc=W/v0.width,v=pg.getViewport({scale:sc*(window.devicePixelRatio||1),rotation:r});
+  const cv=box.querySelector(`.pvPg[data-i="${i}"] canvas`);cv.width=v.width;cv.height=v.height;cv.style.width=Math.round(v.width/(window.devicePixelRatio||1))+'px';
+  await pg.render({canvasContext:cv.getContext('2d'),viewport:v}).promise};
+ const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){const i=+e.target.dataset.i;if(!done.has(i)){done.add(i);draw(i)}}}),{root:box,rootMargin:'600px'});
+ box.querySelectorAll('.pvPg').forEach(el=>io.observe(el));
+ const info=()=>{const n=rot.filter(x=>x%360).length;$('#pvRotN').textContent=n?`Đã xoay ${n} trang`:''};
+ const redraw=i=>{if(done.has(i))draw(i)};
+ $('#dlgB').onclick=async e=>{const b=e.target.closest('button');if(!b)return;
+  if(b.dataset.pg!==undefined){const i=+b.dataset.pg;rot[i]=(rot[i]+ +b.dataset.r+360)%360;redraw(i);info()}
+  else if(b.dataset.all!==undefined){const d=+b.dataset.all;for(let i=0;i<N;i++){rot[i]=d===0?0:(rot[i]+d+360)%360;redraw(i)}try{localStorage.setItem('ddk_rot',JSON.stringify({last:d}))}catch{}info()}
+  else if(b.id==='pvDlRot'){b.disabled=true;try{if(!window.PDFLib)await lib('https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js');
+   const d=await PDFLib.PDFDocument.load(bytes,{ignoreEncryption:true});d.getPages().forEach((p,i)=>{if(rot[i])p.setRotation(PDFLib.degrees((p.getRotation().angle+rot[i])%360))});
+   const out=new Blob([await d.save()],{type:'application/pdf'}),a=document.createElement('a');a.href=URL.createObjectURL(out);a.download=name+'.pdf';document.body.appendChild(a);a.click();a.remove();toast('Đã tải PDF đã xoay đúng chiều')}catch(err){toast('Không tạo được PDF: '+err.message)}b.disabled=false}};
+ $('#dlg').classList.add('on');info();return {rot}}
 async function mergePdf(rows,name,label){
  const mcp=await driveMcp();if(!mcp)return;
  if(rows.length>60&&!(await ask(`Bộ này có ${rows.length} tệp PDF, gộp có thể mất vài phút. Tiếp tục?`)))return;
@@ -633,11 +662,9 @@ function vExport(){
   $('#pvAll').onchange=e=>{$('#dlgB').querySelectorAll('.pvC').forEach(c=>c.checked=e.target.checked);cnt()};
   $('#pvNo').onclick=()=>$('#dlg').classList.remove('on');
   $('#pvPdf').onclick=()=>{const R=[...$('#dlgB').querySelectorAll('.pvC:checked')].map(c=>R0[+c.dataset.i]);if(!R.length)return;
-   PDFPREV=(blob,ok,bad)=>{const u=URL.createObjectURL(blob);
-    $('#dlgT').textContent=`Xem trước trọn bộ: ${fmt(ok)} phiếu`;
-    $('#dlgB').innerHTML=`${bad.length?`<div class="notice">${bad.length} phiếu không lấy được PDF: ${esc(bad.slice(0,8).join(', '))}${bad.length>8?'…':''}</div>`:''}<iframe src="${u}" title="Xem trước trọn bộ" style="width:100%;height:68vh;border:1px solid var(--line);border-radius:8px;background:#fff"></iframe>
-    <div class="row"><button class="btn" id="pvGo2">Kết xuất ${esc(fmL)}</button><a class="btn ghost" href="${u}" target="_blank" rel="noopener">Mở ở tab mới</a><button class="btn ghost" id="pvBack">Quay lại danh sách</button></div>`;
-    $('#dlg').classList.add('on');
+   PDFPREV=async(blob,ok,bad)=>{await pdfViewer(blob,{title:`Xem trước trọn bộ: ${fmt(ok)} phiếu`,name:'Bo_Chung_Tu_xem_truoc',
+     top:bad.length?`<div class="notice">${bad.length} phiếu không lấy được PDF: ${esc(bad.slice(0,8).join(', '))}${bad.length>8?'…':''}</div>`:'',
+     buttons:`<button class="btn" id="pvGo2">Kết xuất ${esc(fmL)}</button><button class="btn ghost" id="pvBack">Quay lại danh sách</button>`});
     $('#pvGo2').onclick=()=>{$('#dlg').classList.remove('on');doExport(R)};
     $('#pvBack').onclick=()=>{$('#dlg').classList.remove('on');$('#xGo').click()}};
    $('#dlg').classList.remove('on');mergePdf(R,'Xem_truoc','XEM TRUOC TRON BO').finally(()=>{PDFPREV=null})};
