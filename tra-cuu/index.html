@@ -161,6 +161,7 @@ details ol{padding-left:18px;margin:6px 0}
 .scroll{overflow-x:auto}
 @media (max-width:860px){.app{grid-template-columns:1fr}.side{position:fixed;left:0;top:0;width:280px;z-index:20;transform:translateX(-105%);transition:transform .25s}.side.open{transform:none}.burger{display:grid}.top .meta{display:none}}
 @media (max-width:600px){.sbox{flex-direction:column}.btn.big{width:100%}.kv{grid-template-columns:1fr}.hide-s{display:none}table{font-size:13px}}
+th select.hf{display:block;margin-top:4px;font:inherit;font-size:12px;font-weight:600;text-transform:none;padding:3px 4px;border:1px solid var(--line,#ddd);border-radius:6px;max-width:150px;background:#fff;color:inherit}
 </style>
 </head>
 <body>
@@ -845,9 +846,10 @@ function vStats(){
   <p class="sm" style="margin:4px 0 10px">Đã scan / chưa scan chỉ tính chứng từ hợp lệ. Chứng từ có dữ liệu ở cột X (Reversal) được tính là Huỷ / Xử lý hệ thống và không đưa vào số chưa scan.</p>
   <div class="grid2"><div class="card"><h3 style="margin-top:0">Báo cáo theo tháng</h3>${tb(['Tháng','Nhập','Xuất','Chuyển','Tổng','Huỷ/XLHT','Đã scan','Chưa scan','% scan'],months.map(a=>`<tr><td>${a.k==='(trống)'?a.k:a.k.slice(5)+'/'+a.k.slice(0,4)}</td>${mrow(a)}</tr>`))}</div>
   <div class="card"><h3 style="margin-top:0">Theo người nhập liệu</h3>${tb(['Người nhập','Nhập','Xuất','Chuyển','Tổng','Huỷ/XLHT','Đã scan','Chưa scan','% scan'],byU.map(a=>`<tr><td>${esc(a.k)}</td>${mrow(a)}</tr>`))}</div></div>
-  <h3>Danh sách chứng từ (${fmt(t)})</h3>${tb(['Số chứng từ','Ngày','Loại','Mvt','Người nhập','Dự án','Nhà cung cấp','Số dòng','Scan'],R.slice(0,shown).map(o=>`<tr><td><b>${esc(o.so)}</b></td><td style="white-space:nowrap">${o.d?fd(o.d):''}</td><td><span class="tag">${o.l}</span></td><td class="sm">${esc(o.mvs)}</td><td class="sm">${esc(o.u)}</td><td class="sm">${esc((o.pm?o.pm+' ':'')+o.pn)}</td><td class="sm">${esc(o.v)}</td><td class="n">${o.n}</td><td>${o.huy?`<span class="tag" title="Cột X: ${esc(o.hx)}">Huỷ / XLHT</span>`:o.sc?'<span class="tag g">Đã scan</span>':'<span class="tag w">Chưa scan</span>'}</td></tr>`))}
+  <h3>Danh sách chứng từ (${fmt(t)})</h3>${tb(['Số chứng từ','Ngày',`Loại<br><select id="hfL" class="hf" title="Lọc loại"><option value="">Tất cả</option>${['Nhập','Xuất','Chuyển kho','Khác'].map(x=>`<option ${f.l===x?'selected':''}>${x}</option>`).join('')}</select>`,'Mvt',`Người nhập<br><select id="hfU" class="hf" title="Lọc người nhập"><option value="">Tất cả</option>${users.map(x=>`<option ${f.u===x?'selected':''}>${esc(x)}</option>`).join('')}</select>`,'Dự án','Nhà cung cấp','Số dòng',`Scan<br><select id="hfSc" class="hf" title="Lọc trạng thái scan"><option value="">Tất cả</option><option value="1" ${f.sc==='1'?'selected':''}>Đã scan</option><option value="0" ${f.sc==='0'?'selected':''}>Chưa scan</option><option value="h" ${f.sc==='h'?'selected':''}>Huỷ / XLHT</option></select>`],R.slice(0,shown).map(o=>`<tr><td><b>${esc(o.so)}</b></td><td style="white-space:nowrap">${o.d?fd(o.d):''}</td><td><span class="tag">${o.l}</span></td><td class="sm">${esc(o.mvs)}</td><td class="sm">${esc(o.u)}</td><td class="sm">${esc((o.pm?o.pm+' ':'')+o.pn)}</td><td class="sm">${esc(o.v)}</td><td class="n">${o.n}</td><td>${o.huy?`<span class="tag" title="Cột X: ${esc(o.hx)}">Huỷ / XLHT</span>`:o.sc?'<span class="tag g">Đã scan</span>':'<span class="tag w">Chưa scan</span>'}</td></tr>`))}
   ${t>shown?`<div class="row" style="justify-content:center"><button class="btn ghost" id="stMore">Hiện thêm (${fmt(shown)}/${fmt(t)})</button></div>`:''}`;
-  const mb=$('#stMore');if(mb)mb.onclick=()=>{shown+=500;draw()}};
+  const mb=$('#stMore');if(mb)mb.onclick=()=>{shown+=500;draw()};
+  [['hfL','stL'],['hfU','stU'],['hfSc','stSc']].forEach(([a,b])=>{const e=$('#'+a);if(e)e.onchange=()=>{$('#'+b).value=e.value;shown=200;draw()}})};
  ['stTu','stDen','stL','stSc','stU'].forEach(id=>$('#'+id).onchange=()=>{shown=200;draw()});
  let qt;$('#stQ').oninput=()=>{clearTimeout(qt);qt=setTimeout(()=>{shown=200;draw()},300)};
  $('#stClr').onclick=()=>{ls.set('stF',{tu:'',den:'',l:'',sc:'',u:'',q:''});vStats()};
