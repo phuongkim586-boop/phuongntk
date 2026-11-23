@@ -795,13 +795,13 @@ async function loadStats(){
   if(r.status===403||r.status===404)throw new Error('Tài khoản này chưa có quyền xem tệp "06. SCRIP CẢNH BÁO PR CHƯA NHẬP KHO".');
   throw new Error('Lỗi đọc Google Sheet ('+r.status+') '+m)}
  const vr=(await r.json()).valueRanges.map(x=>x.values||[]);
- const [B,C,Dd]=[vr[0][0]||[],vr[0][1]||[],vr[0][2]||[]],[K,L]=[vr[1][0]||[],vr[1][1]||[]],[N,O,P]=[vr[2][0]||[],vr[2][1]||[],vr[2][2]||[]],R=vr[3][0]||[],U=vr[4][0]||[],X=(vr[5]&&vr[5][0])||[];
+ const [B,C,Dd]=[vr[0][0]||[],vr[0][1]||[],vr[0][2]||[]],[PJ,PN]=[vr[1][0]||[],vr[1][1]||[]],[N,O,P]=[vr[2][0]||[],vr[2][1]||[],vr[2][2]||[]],R=vr[3][0]||[],U=vr[4][0]||[],X=(vr[5]&&vr[5][0])||[];
  const scanned=new Set();for(const d of D){for(const v of [d.s,d.f])for(const m of String(v||'').matchAll(/\d{10}/g))scanned.add(m[0]);const s0=String(d.s||'').replace(/\s/g,'');if(s0)scanned.add(s0)}
  const cls=(t,dc)=>{t=K(t);if(/chuyen/.test(t))return 'Chuyển kho';if(/\bnk\b|nhap/.test(t))return 'Nhập';if(/xuat/.test(t))return 'Xuất';return dc==='S'?'Nhập':dc==='H'?'Xuất':'Khác'};
  const pd=s=>{const m=/(\d{1,2})\s*\/\s*(\d{1,2})\s*\/\s*(\d{4})/.exec(s||'');return m?`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`:''};
  const docs=new Map(),n=C.length;
  for(let i=0;i<n;i++){const so=String(C[i]||'').trim();if(!so)continue;let o=docs.get(so);
-  if(!o){o={so,d:pd(Dd[i]),u:String(B[i]||'').trim(),pm:String(K[i]||'').trim(),pn:String(L[i]||'').trim(),v:String(R[i]||'').trim(),tr:String(U[i]||'').trim(),mv:new Set(),c:{},n:0,huy:false,hx:''};docs.set(so,o)}
+  if(!o){o={so,d:pd(Dd[i]),u:String(B[i]||'').trim(),pm:String(PJ[i]||'').trim(),pn:String(PN[i]||'').trim(),v:String(R[i]||'').trim(),tr:String(U[i]||'').trim(),mv:new Set(),c:{},n:0,huy:false,hx:''};docs.set(so,o)}
   {const xv=String(X[i]||'').trim();if(xv){o.huy=true;if(!o.hx)o.hx=xv}}
   o.n++;if(N[i])o.mv.add(String(N[i]).trim());const c=cls(O[i],String(P[i]||'').trim().toUpperCase());o.c[c]=(o.c[c]||0)+1}
  const list=[...docs.values()].map(o=>{o.l=o.c['Chuyển kho']?'Chuyển kho':Object.entries(o.c).sort((a,b)=>b[1]-a[1])[0][0];o.sc=scanned.has(o.so.replace(/\s/g,''));o.mvs=[...o.mv].join(', ');return o}).sort((a,b)=>(b.d||'').localeCompare(a.d||'')||b.so.localeCompare(a.so));
