@@ -261,7 +261,7 @@ function index(){
  projects=[...pj.values()].sort((a,b)=>b.n-a.n);suppliers=[...sp.values()].sort((a,b)=>b.c-a.c);
  $('#bdN').textContent=fmt(D.length);
  const yrs=[...new Set(D.map(r=>r.d.slice(0,4)))].filter(Boolean).sort();
- $('#sidefoot').innerHTML=`<b>${fmt(D.length)}</b> chứng từ · <b>${fmt(projects.length)}</b> dự án · <b>${fmt(suppliers.length)}</b> nhà cung cấp<br>Năm: ${yrs.filter(y=>+y>=2026).join(', ')||'2026'}<br>Nguồn: 2 thư mục Google Drive (chỉ đọc)`;
+ $('#sidefoot').innerHTML=`<b>${fmt(D.length)}</b> chứng từ · <b>${fmt(projects.length)}</b> dự án · <b>${fmt(suppliers.length)}</b> nhà cung cấp<br>Năm: ${yrs.filter(y=>+y>=2026).join(', ')||'2026'}<br>Nguồn: thư mục Bo_Phieu_Da_Tach_2026 trên Google Drive (chỉ đọc)`;
  $('#meta').innerHTML=`Cập nhật danh mục: ${esc(ls.get('lastSync','21/11/2026'))}`;
 }
 const SB=supabase.createClient("https://zpdbodcnhhbbhuyisgjc.supabase.co","sb_publishable_VR2g0WZkcfVlKY5cftVRow_LRNCjLTk");
@@ -284,28 +284,30 @@ function showWho(){const w=$('#who');if(!w)return;$('#whoMail').textContent=ME.e
  tick();clearInterval(showWho._t);showWho._t=setInterval(tick,30000);w.style.display='block'}
 function setBadge(n){const b=$('#bdTK');if(!b)return;b.textContent=n||'';b.style.display=n?'':'none'}
 async function pendingBadge(showToast){if(!ME.admin)return;const {count}=await SB.from('tai_khoan').select('id',{count:'exact',head:true}).eq('trang_thai','cho_duyet');setBadge(count||0);if(showToast&&count)toast('Có '+count+' tài khoản đang chờ duyệt (mục 4. Dữ liệu & tài khoản)',6000)}
+/* Nguồn tra cứu duy nhất: thư mục Bo_Phieu_Da_Tach_2026 trên Google Drive */
+const SRC_FOLDER='Bo_Phieu_Da_Tach_2026',SRC_FOLDER_ID='1Bebr1uEJqY_y2W2NEN2MMd66roD_VH_D';
 async function load(){
  const {data:{session}}=await SB.auth.getSession();
  if(!session){$('#login').style.display='grid';$('#view').innerHTML='';return}
  $('#login').style.display='none';
  if(!(await checkAccount(session)))return;
- const cache=await IDB.get('docs');if(cache&&cache.rows){D=cache.rows.map(prep);index();route()}
- const {count}=await SB.from('chung_tu').select('drive_id',{count:'exact',head:true});
+ const cache=await IDB.get('docs');if(cache&&cache.rows&&cache.src===SRC_FOLDER){D=cache.rows.map(prep);index();route()}
+ const {count}=await SB.from('chung_tu').select('drive_id',{count:'exact',head:true}).eq('thu_muc',SRC_FOLDER);
  if(!count){$('#view').innerHTML='<div class="notice">Chưa đọc được dữ liệu chứng từ. Vào mục 4 bấm Tải lại dữ liệu, hoặc báo quản trị viên.</div>';return}
  const {data:last}=await SB.from('chung_tu').select('dong_bo_luc').order('dong_bo_luc',{ascending:false}).limit(1);
  const t=last&&last[0]&&last[0].dong_bo_luc;
- if(cache&&cache.n===count&&cache.t===t)return;
+ if(cache&&cache.n===count&&cache.t===t&&cache.src===SRC_FOLDER)return;
  const COLS='drive_id,so_phieu,loai,ngay,ngay_uoc_tinh,du_an_ma,du_an,wbs,nha_cung_cap,ncc_noi_bo,bo_phan,dien_giai,loai_giao_dich,lenh_po,tong_so_luong,ten_tep,thu_muc,kich_thuoc,ngay_tai_len,co_noi_dung,noi_dung,so_xe';
  const P=1000,pages=Math.ceil(count/P),parts=new Array(pages);let done=0,next=0,shown=!!D.length;
  const prog=()=>{const n=Math.min(done*P,count);$('#sidefoot').innerHTML=`Đang tải dữ liệu… ${fmt(n)}/${fmt(count)}`;if(!shown)$('#view').innerHTML=`<div class="empty">Đang tải dữ liệu chứng từ… ${fmt(n)}/${fmt(count)}</div>`};
  prog();
  const worker=async()=>{while(next<pages){const i=next++;let r,tries=0;
-  do{r=await SB.from('v_tra_cuu').select(COLS).order('drive_id').range(i*P,i*P+P-1)}while(r.error&&++tries<3);
+  do{r=await SB.from('v_tra_cuu').select(COLS).eq('thu_muc',SRC_FOLDER).order('drive_id').range(i*P,i*P+P-1)}while(r.error&&++tries<3);
   if(r.error)throw r.error;parts[i]=r.data.map(fromRow);done++;prog();
   if(!shown&&done>=3){shown=true;D=parts.filter(Boolean).flat().map(prep);index();route()}}};
  await Promise.all(Array.from({length:6},worker));
  const all=parts.flat();
- await IDB.set('docs',{n:count,t,rows:all});
+ await IDB.set('docs',{n:count,t,src:SRC_FOLDER,rows:all});
  D=all.map(prep);index();route();
 }
 const HOME=location.origin+location.pathname;
@@ -748,7 +750,7 @@ async function vSupabase(){
  $('#ttl').textContent='Dữ liệu & tài khoản';const {data:{user}}=await SB.auth.getUser();
  const {data:tt}=await SB.from('v_tinh_trang').select('*');
  $('#view').innerHTML=`<div class="grid2"><div class="card"><h3 style="margin-top:0">Tài khoản</h3><p>Đang đăng nhập: <b>${esc(user&&user.email)}</b></p><p class="sm">Vai trò: ${ME.admin?'Quản trị viên':'Nhân viên đã được duyệt'}</p><div class="row"><button class="btn ghost" id="reload">Tải lại dữ liệu</button><button class="btn" id="logout">Đăng xuất</button></div></div>
- <div class="card"><h3 style="margin-top:0">Nguồn dữ liệu</h3><p>Dữ liệu lấy từ Supabase (dự án kho-an-ha-chung-tu), đọc từ 2 thư mục Google Drive. Việc quét Drive, chuyển dữ liệu và xuất PDF gộp được thực hiện trong bản nội bộ trên Claude.</p></div></div>
+ <div class="card"><h3 style="margin-top:0">Nguồn dữ liệu</h3><p>Dữ liệu lấy từ Supabase (dự án kho-an-ha-chung-tu), đọc từ thư mục Bo_Phieu_Da_Tach_2026 trên Google Drive. Việc quét Drive, chuyển dữ liệu và xuất PDF gộp được thực hiện trong bản nội bộ trên Claude.</p></div></div>
  ${ME.admin?'<h3 style="margin-top:22px">Duyệt tài khoản</h3><div id="tkBox"><div class="empty">Đang tải danh sách tài khoản…</div></div>':''}<h3>Tình trạng theo loại chứng từ</h3><div id="tt"></div>`;
  $('#tt').innerHTML=listTbl(['Loại','Số chứng từ','Thiếu ngày','Thiếu dự án','Thiếu NCC','Chưa OCR'],(tt||[]).map(x=>[TY[x.loai]||x.loai,+x.so_chung_tu,+x.thieu_ngay,+x.thieu_du_an,+x.thieu_ncc,+x.chua_ocr]));
  $('#logout').onclick=async()=>{await SB.auth.signOut();try{indexedDB.deleteDatabase('ddk_kho')}catch{}location.reload()};
@@ -787,7 +789,7 @@ async function renderAccounts(){
 /* ===== 6. Thống kê nhập liệu (chỉ quản trị viên) – đọc sheet "Trang tính6" của tệp 06. SCRIP CẢNH BÁO PR CHƯA NHẬP KHO ===== */
 const STK_ID='1tM4F7DFTLjPtyh0hoRw92lRZSiQ1IkXXvmPwI7zjp_U',STK_SHEET='Trang tính6';
 /* Thư mục chứa phiếu đã scan/tách trên Drive (quét cả thư mục con) */
-const SCAN_FOLDERS=['1Bebr1uEJqY_y2W2NEN2MMd66roD_VH_D','1__GnHndEzCqa_jPZ1uiOAuPahG7FmBec'];
+const SCAN_FOLDERS=[SRC_FOLDER_ID];
 async function driveScanNames(tk,onProg){const names=new Set(),q=[...SCAN_FOLDERS],seen=new Set();let nf=0;
  while(q.length){const id=q.shift();if(seen.has(id))continue;seen.add(id);let pt='';
   do{const u='https://www.googleapis.com/drive/v3/files?pageSize=1000&supportsAllDrives=true&includeItemsFromAllDrives=true&fields=nextPageToken,files(id,name,mimeType)&q='+encodeURIComponent(`'${id}' in parents and trashed=false`)+(pt?'&pageToken='+pt:'');
