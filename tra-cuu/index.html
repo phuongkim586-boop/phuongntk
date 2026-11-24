@@ -252,8 +252,15 @@ function fixProj(){
   else if(c&&!full(c)&&K(p).length>=10){const cand=codes.filter(x=>x.startsWith(c)&&K(canon.get(x)).startsWith(K(p)));if(cand.length===1){nc=cand[0];nm=canon.get(nc)}}
   r.m=nm?nc:c;r.p=nm||r.p0;r.k=K([r.s,r.f,r.p,r.m,r.w,r.n,r.b,r.g,r.x,r.o,r.q,TY[r.l]].join(' '))}
 }
+/* Ẩn tệp trùng: cùng số phiếu + cùng loại chỉ giữ 1 tệp (tệp lớn nhất = đủ trang nhất; bằng nhau thì tệp tải lên mới nhất) */
+const DUPS=new Set();
+function dedupe(){const key=r=>{const s=String(r.s||'').toUpperCase().replace(/[\s_\/.\-]/g,'');return s?(r.l||'')+'|'+s:''};
+ const best=new Map();
+ for(const r of D){const k=key(r);if(!k)continue;const b=best.get(k);
+  if(!b||(+r.z||0)>(+b.z||0)||((+r.z||0)===(+b.z||0)&&String(r.c||'')>String(b.c||'')))best.set(k,r)}
+ D=D.filter(r=>{const k=key(r);if(!k||best.get(k)===r)return true;DUPS.add(r.i);return false})}
 function index(){
- fixProj();
+ dedupe();fixProj();
  byId=new Map(D.map(r=>[r.i,r]));bySo=new Map();for(const r of D){const a=bySo.get(r.s)||[];a.push(r);bySo.set(r.s,a)}
  const pj=new Map(),sp=new Map();
  for(const r of D){if(r.p||r.m){const k=r.m||r.p;const o=pj.get(k)||{m:r.m||'',p:r.p||'',n:0,first:r.d,last:r.d};o.n++;if(r.p&&!o.p)o.p=r.p;if(r.d&&(!o.first||r.d<o.first))o.first=r.d;if(r.d&&r.d>o.last)o.last=r.d;pj.set(k,o)}
@@ -750,7 +757,7 @@ async function vSupabase(){
  $('#ttl').textContent='Dữ liệu & tài khoản';const {data:{user}}=await SB.auth.getUser();
  const {data:tt}=await SB.from('v_tinh_trang').select('*');
  $('#view').innerHTML=`<div class="grid2"><div class="card"><h3 style="margin-top:0">Tài khoản</h3><p>Đang đăng nhập: <b>${esc(user&&user.email)}</b></p><p class="sm">Vai trò: ${ME.admin?'Quản trị viên':'Nhân viên đã được duyệt'}</p><div class="row"><button class="btn ghost" id="reload">Tải lại dữ liệu</button><button class="btn" id="logout">Đăng xuất</button></div></div>
- <div class="card"><h3 style="margin-top:0">Nguồn dữ liệu</h3><p>Dữ liệu lấy từ Supabase (dự án kho-an-ha-chung-tu), đọc từ thư mục Bo_Phieu_Da_Tach_2026 trên Google Drive. Việc quét Drive, chuyển dữ liệu và xuất PDF gộp được thực hiện trong bản nội bộ trên Claude.</p></div></div>
+ <div class="card"><h3 style="margin-top:0">Nguồn dữ liệu</h3><p>Dữ liệu lấy từ Supabase (dự án kho-an-ha-chung-tu), đọc từ thư mục Bo_Phieu_Da_Tach_2026 trên Google Drive${DUPS.size?` (đã tự ẩn ${fmt(DUPS.size)} tệp trùng số phiếu, giữ bản đầy đủ nhất)`:''}. Việc quét Drive, chuyển dữ liệu và xuất PDF gộp được thực hiện trong bản nội bộ trên Claude.</p></div></div>
  ${ME.admin?'<h3 style="margin-top:22px">Duyệt tài khoản</h3><div id="tkBox"><div class="empty">Đang tải danh sách tài khoản…</div></div>':''}<h3>Tình trạng theo loại chứng từ</h3><div id="tt"></div>`;
  $('#tt').innerHTML=listTbl(['Loại','Số chứng từ','Thiếu ngày','Thiếu dự án','Thiếu NCC','Chưa OCR'],(tt||[]).map(x=>[TY[x.loai]||x.loai,+x.so_chung_tu,+x.thieu_ngay,+x.thieu_du_an,+x.thieu_ncc,+x.chua_ocr]));
  $('#logout').onclick=async()=>{await SB.auth.signOut();try{indexedDB.deleteDatabase('ddk_kho')}catch{}location.reload()};
