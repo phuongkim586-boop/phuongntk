@@ -269,7 +269,7 @@ function index(){
  $('#bdN').textContent=fmt(D.length);
  const yrs=[...new Set(D.map(r=>r.d.slice(0,4)))].filter(Boolean).sort();
  $('#sidefoot').innerHTML=`<b>${fmt(D.length)}</b> chứng từ · <b>${fmt(projects.length)}</b> dự án · <b>${fmt(suppliers.length)}</b> nhà cung cấp<br>Năm: ${yrs.filter(y=>+y>=2026).join(', ')||'2026'}<br>Nguồn: thư mục Bo_Phieu_Da_Tach_2026 trên Google Drive (chỉ đọc)`;
- $('#meta').innerHTML=`Cập nhật danh mục: ${esc(ls.get('lastSync','21/11/2026'))}`;
+ $('#meta').innerHTML=`Cập nhật danh mục: ${esc(ls.get('lastSync','—'))}`;
 }
 const SB=supabase.createClient("https://zpdbodcnhhbbhuyisgjc.supabase.co","sb_publishable_VR2g0WZkcfVlKY5cftVRow_LRNCjLTk");
 let ME={email:'',admin:false};
@@ -303,6 +303,7 @@ async function load(){
  if(!count){$('#view').innerHTML='<div class="notice">Chưa đọc được dữ liệu chứng từ. Vào mục 4 bấm Tải lại dữ liệu, hoặc báo quản trị viên.</div>';return}
  const {data:last}=await SB.from('chung_tu').select('dong_bo_luc').order('dong_bo_luc',{ascending:false}).limit(1);
  const t=last&&last[0]&&last[0].dong_bo_luc;
+ if(t){try{ls.set('lastSync',new Date(t).toLocaleString('vi-VN',{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit',year:'numeric'}));$('#meta').textContent='Cập nhật danh mục: '+ls.get('lastSync','')}catch{}}
  if(cache&&cache.n===count&&cache.t===t&&cache.src===SRC_FOLDER)return;
  const COLS='drive_id,so_phieu,loai,ngay,ngay_uoc_tinh,du_an_ma,du_an,wbs,nha_cung_cap,ncc_noi_bo,bo_phan,dien_giai,loai_giao_dich,lenh_po,tong_so_luong,ten_tep,thu_muc,kich_thuoc,ngay_tai_len,co_noi_dung,noi_dung,so_xe';
  const P=1000,pages=Math.ceil(count/P),parts=new Array(pages);let done=0,next=0,shown=!!D.length;
