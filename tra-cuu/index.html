@@ -294,9 +294,9 @@ async function pendingBadge(showToast){if(!ME.admin)return;const {count}=await S
 /* Nguồn tra cứu duy nhất: thư mục Bo_Phieu_Da_Tach_2026 trên Google Drive */
 const SRC_FOLDER='Bo_Phieu_Da_Tach_2026',SRC_FOLDER_ID='1Bebr1uEJqY_y2W2NEN2MMd66roD_VH_D';
 const COLS_V='drive_id,so_phieu,loai,ngay,ngay_uoc_tinh,du_an_ma,du_an,wbs,nha_cung_cap,ncc_noi_bo,bo_phan,dien_giai,loai_giao_dich,lenh_po,tong_so_luong,ten_tep,thu_muc,kich_thuoc,ngay_tai_len,co_noi_dung,noi_dung,so_xe';
-async function fetchPages(q0,total,P,onPage){const pages=Math.ceil(total/P),parts=new Array(pages);let next=0,done=0;
+async function fetchPages(q0,total,P,onPage,key){key=key||'drive_id';const pages=Math.ceil(total/P),parts=new Array(pages);let next=0,done=0;
  const worker=async()=>{while(next<pages){const i=next++;let r,tries=0;
-  do{r=await q0().order('drive_id').range(i*P,i*P+P-1)}while(r.error&&++tries<3);
+  do{r=await q0().order(key).range(i*P,i*P+P-1)}while(r.error&&++tries<3);
   if(r.error)throw r.error;parts[i]=r.data;done++;onPage&&onPage(done,parts)}};
  await Promise.all(Array.from({length:Math.min(8,pages)},worker));return parts.flat()}
 async function load(force){
@@ -821,7 +821,7 @@ async function loadStats(){
  const {count,error:e0}=await SB.from('v_sap_ct').select('so_ct',{count:'exact',head:true});
  if(e0)throw new Error('Không đọc được dữ liệu SAP trên máy chủ: '+e0.message);
  if(!count)throw new Error('NOSAP');
- const rows=await fetchPages(()=>SB.from('v_sap_ct').select('*'),count,1000).catch(async()=>{throw new Error('Lỗi tải dữ liệu thống kê')});
+ const rows=await fetchPages(()=>SB.from('v_sap_ct').select('*'),count,1000,null,'so_ct').catch(async()=>{throw new Error('Lỗi tải dữ liệu thống kê')});
  const sc=new Set();for(const d of D){for(const v of [d.s,d.f])for(const m of String(v||'').matchAll(/\d{10}/g))sc.add(m[0]);const s0=String(d.s||'').replace(/\s/g,'');if(s0)sc.add(s0)}
  for(const x of ls.get('driveNames',[]))sc.add(x);
  const list=rows.map(o=>({so:o.so_ct,d:o.ngay||'',u:o.nguoi_nhap||'',pm:o.ma_da||'',pn:o.ten_da||'',v:o.ncc||'',tr:o.truck||'',mvs:o.mvt||'',l:o.loai||'Khác',n:o.so_dong,huy:!!o.huy,hx:o.hx||'',po:o.so_po||'',yc:o.so_yc||'',sc:sc.has(String(o.so_ct).replace(/\s/g,''))}))
