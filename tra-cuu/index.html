@@ -845,6 +845,8 @@ async function syncSap(onMsg){
  const w=async()=>{while(nx<nb){const i=nx++;let e,t=0;do{({error:e}=await SB.from('sap_dong').upsert(out.slice(i*B,i*B+B),{onConflict:'khoa'}))}while(e&&++t<3);
   if(e)throw new Error('Ghi Supabase lỗi: '+e.message);done+=Math.min(B,out.length-i*B);onMsg&&onMsg(`Đang ghi lên máy chủ: ${fmt(done)}/${fmt(out.length)} dòng…`)}};
  await Promise.all(Array.from({length:Math.min(3,nb)},w));
+ onMsg&&onMsg('Đang làm mới bảng tổng hợp trên máy chủ…');
+ {const {error}=await SB.rpc('lam_moi_sap');if(error)throw new Error('Không làm mới được bảng tổng hợp: '+error.message)}
  pushLog('Đồng bộ SAP','Google Sheet → Supabase',out.length);
  try{const ni=await syncIndexPdf(tk,onMsg);onMsg&&onMsg(`Đã đồng bộ ${fmt(out.length)} dòng SAP và ${fmt(ni)} chứng từ trong chỉ mục PDF.`)}catch(e){onMsg&&onMsg('Đã đồng bộ SAP. Chỉ mục PDF chưa đồng bộ được: '+e.message)}
  return out.length}
