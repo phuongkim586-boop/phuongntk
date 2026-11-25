@@ -162,17 +162,20 @@ details ol{padding-left:18px;margin:6px 0}
 @media (max-width:600px){.sbox{flex-direction:column}.btn.big{width:100%}.kv{grid-template-columns:1fr}.hide-s{display:none}table{font-size:13px}}
 th select.hf{display:block;margin-top:4px;font:inherit;font-size:12px;font-weight:600;text-transform:none;padding:3px 4px;border:1px solid var(--line,#ddd);border-radius:6px;max-width:150px;background:#fff;color:inherit}
 ul.stl{margin:0;padding-left:20px;line-height:1.7}ul.stl li{margin:2px 0}
-/* In A4: chỉ in bảng kết quả, bỏ menu, nút, bộ lọc */
+/* In A4 ngang: in đúng khu nội dung đang mở (#view) — tra cứu, kết xuất, thống kê… — bỏ menu, nút, bộ lọc */
 @page{size:A4 landscape;margin:12mm}
 @media print{
+ html,body{height:auto!important;overflow:visible!important;background:#fff!important}
  body *{visibility:hidden!important}
- #res,#res *{visibility:visible!important}
- #res{position:absolute;left:0;top:0;width:100%;background:#fff}
- #res .btn,#res .tbar,#res .vt,#res .chips,#res .notice,#res .hint{display:none!important}
- #res table{font-size:10pt;width:100%;border-collapse:collapse}
- #res th,#res td{border:1px solid #999;padding:3px 5px}
- #res tr{break-inside:avoid}
- #res thead{display:table-header-group}
+ #view,#view *{visibility:visible!important}
+ #view{position:absolute;left:0;top:0;width:100%;margin:0!important;padding:0!important;background:#fff}
+ #view *{overflow:visible!important;max-height:none!important;box-shadow:none!important;position:static!important}
+ #view .btn,#view .tabs,#view .tbar,#view .vt,#view .chips,#view .sbox,#view form,#view .hint,#view .notice,#view select,#view input,#view button,#view .pager,#view [data-m],#view .hf{display:none!important}
+ #view table{font-size:10pt;width:100%;border-collapse:collapse}
+ #view th,#view td{border:1px solid #999;padding:3px 5px;vertical-align:top}
+ #view tr{break-inside:avoid}
+ #view thead{display:table-header-group}
+ #view h2,#view h3,#view h4{break-after:avoid}
 }
 </style>
 </head>
