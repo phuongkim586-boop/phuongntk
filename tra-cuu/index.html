@@ -862,6 +862,7 @@ async function driveScanNames(tk,onProg){const names=new Set(),q=[...SCAN_FOLDER
    const r=await fetch(u,{headers:{Authorization:'Bearer '+tk}});if(!r.ok){let m='';try{m=(await r.json()).error.message||''}catch{}throw new Error('Không đọc được thư mục scan trên Drive ('+r.status+') '+m)}
    const j=await r.json();for(const f of j.files||[]){if(f.mimeType==='application/vnd.google-apps.folder')q.push(f.id);else{names.add(f.name);nf++}}pt=j.nextPageToken||'';onProg&&onProg(nf)}while(pt)}
  return names}
+const properName=n=>String(n||'').trim().replace(/\s+/g,' ').toLocaleLowerCase('vi').replace(/(^|\s)(\S)/g,(m,a,b)=>a+b.toLocaleUpperCase('vi'));
 let STK=null;
 async function loadStats(){
  const {count,error:e0}=await SB.from('v_doi_soat').select('so_ct',{count:'exact',head:true});
@@ -870,7 +871,7 @@ async function loadStats(){
  const rows=await fetchPages(()=>SB.from('v_doi_soat').select('*'),count,1000,null,'so_ct').catch(async()=>{throw new Error('Lỗi tải dữ liệu thống kê')});
  const sc=new Set();for(const d of D){for(const v of [d.s,d.f])for(const m of String(v||'').matchAll(/\d{10}/g))sc.add(m[0]);const s0=String(d.s||'').replace(/\s/g,'');if(s0)sc.add(s0)}
  for(const x of ls.get('driveNames',[]))sc.add(x);
- const list=rows.map(o=>({so:o.so_ct,d:o.ngay||'',u:(o.tao_boi||o.nguoi_nhap||'').trim().toUpperCase(),pm:o.ma_da||'',pn:o.ten_da||'',v:o.ncc||'',tr:o.truck||'',mvs:o.mvt||'',l:o.loai||'Khác',n:o.so_dong,huy:!!o.huy,hx:o.hx||'',po:o.so_po||'',yc:o.so_yc||'',lk:o.link_pdf||o.link_sap||'',sc:!!o.da_scan||sc.has(String(o.so_ct).replace(/\s/g,''))}))
+ const list=rows.map(o=>({so:o.so_ct,d:o.ngay||'',u:properName(o.tao_boi),pm:o.ma_da||'',pn:o.ten_da||'',v:o.ncc||'',tr:o.truck||'',mvs:o.mvt||'',l:o.loai||'Khác',n:o.so_dong,huy:!!o.huy,hx:o.hx||'',po:o.so_po||'',yc:o.so_yc||'',lk:o.link_pdf||o.link_sap||'',sc:!!o.da_scan||sc.has(String(o.so_ct).replace(/\s/g,''))}))
   .sort((a,b)=>(b.d||'').localeCompare(a.d||'')||b.so.localeCompare(a.so));
  STK={list,at:new Date(),rows:list.reduce((x,o)=>x+o.n,0)};return STK}
 /* Đồng bộ Google Sheet "Trang tính6" -> bảng sap_dong trên Supabase. Chạy lại nhiều lần không tạo bản ghi trùng (upsert theo khoá nghiệp vụ). */
@@ -957,7 +958,7 @@ function vStats(){
  let shown=200;
  const draw=()=>{const f=get();ls.set('stF',f);const R=pick(f),t=R.length,h=R.filter(o=>o.huy).length,v=t-h,s=R.filter(o=>!o.huy&&o.sc).length;
   const cnt=l=>R.filter(o=>o.l===l).length;
-  const months=agg(R,o=>o.d?o.d.slice(0,7):'').sort((a,b)=>b.k.localeCompare(a.k)),byU=agg(R,o=>o.u).sort((a,b)=>b.t-a.t);
+  const months=agg(R,o=>o.d?o.d.slice(0,7):'').sort((a,b)=>b.k.localeCompare(a.k));
   const tb=(h,rows)=>`<div style="overflow:auto"><table><thead><tr>${h.map(x=>`<th>${x}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>`;
   const mrow=a=>`<td class="n">${fmt(a.n)}</td><td class="n">${fmt(a.x)}</td><td class="n">${fmt(a.c)}</td><td class="n"><b>${fmt(a.t)}</b></td><td class="n">${fmt(a.h)}</td><td class="n">${fmt(a.s)}</td><td class="n">${fmt(a.t-a.h-a.s)}</td><td class="n">${pct(a.s,a.t-a.h)}</td>`;
   $('#stOut').innerHTML=`<div class="kpis"><div class="kpi"><b>${fmt(t)}</b><span>chứng từ</span></div><div class="kpi"><b>${fmt(cnt('Nhập'))}</b><span>phiếu nhập</span></div><div class="kpi"><b>${fmt(cnt('Xuất'))}</b><span>phiếu xuất</span></div><div class="kpi"><b>${fmt(cnt('Chuyển kho'))}</b><span>chuyển kho</span></div><div class="kpi"><b>${fmt(v)}</b><span>hợp lệ</span></div><div class="kpi"><b>${fmt(h)}</b><span>huỷ / xử lý hệ thống</span></div><div class="kpi"><b>${fmt(s)}</b><span>đã scan (${pct(s,v)} hợp lệ)</span></div><div class="kpi"><b>${fmt(v-s)}</b><span>chưa scan (hợp lệ)</span></div></div>
