@@ -165,6 +165,14 @@ ul.stl{margin:0;padding-left:20px;line-height:1.7}ul.stl li{margin:2px 0}
 /* In A4 ngang: in đúng khu nội dung đang mở (#view) — tra cứu, kết xuất, thống kê… — bỏ menu, nút, bộ lọc */
 @page{size:A4 landscape;margin:12mm}
 @media print{
+ body:has(#dlg.on) #view{display:none!important}
+ #dlg.on{position:absolute!important;left:0;top:0;width:100%;height:auto!important;background:#fff!important;display:block!important;visibility:visible!important}
+ #dlg.on *{visibility:visible!important;box-shadow:none!important;max-height:none!important;overflow:visible!important}
+ #dlg.on .box,#dlg.on .bdy{width:100%!important;max-width:none!important;padding:0!important;margin:0!important;border:0!important;position:static!important;transform:none!important}
+ #dlg.on .hd,#dlg.on .btn,#dlg.on .row,#dlg.on .notice,#dlg.on .pvPg .row{display:none!important}
+ #dlg.on #pvPages{display:block!important;height:auto!important;padding:0!important;background:#fff!important;border:0!important}
+ #dlg.on .pvPg{break-inside:avoid;page-break-after:always;border:0!important;padding:0!important;margin:0 0 6mm 0!important;background:#fff!important}
+ #dlg.on canvas{max-width:100%!important;height:auto!important}
  html,body{height:auto!important;overflow:visible!important;background:#fff!important}
  body *{visibility:hidden!important}
  #view,#view *{visibility:visible!important}
@@ -621,6 +629,10 @@ async function coverPages(out,rows,label){
   v.forEach((t,k)=>pg.drawText(fit(t,(cols[k+1]||W-M)-cols[k]-6,9,font),{x:cols[k],y,size:9,font,color:ink}));
   y-=13.4});
 }
+/* In một tệp PDF: đưa vào khung ẩn rồi gọi in của chính trình xem PDF, nên in được cả bộ nhiều trang đúng chiều */
+function printBlob(blob){const url=URL.createObjectURL(blob);const f=document.createElement('iframe');
+ f.style.cssText='position:fixed;right:0;bottom:0;width:1px;height:1px;border:0;opacity:0';f.src=url;document.body.appendChild(f);
+ f.onload=()=>{setTimeout(()=>{try{f.contentWindow.focus();f.contentWindow.print()}catch{window.open(url,'_blank')}},300);setTimeout(()=>{f.remove();URL.revokeObjectURL(url)},120000)}}
 let PDFPREV=null;
 /* Trình xem PDF: xoay từng trang hoặc cả bộ, tải về bản đã xoay */
 async function pdfViewer(blob,{title,top='',buttons='',name='Chung_tu'}={}){
@@ -633,7 +645,7 @@ async function pdfViewer(blob,{title,top='',buttons='',name='Chung_tu'}={}){
  $('#dlgT').textContent=title||'Xem chứng từ';
  $('#dlgB').innerHTML=`${top}<div class="row" style="margin:0 0 8px;gap:6px;flex-wrap:wrap"><b class="sm">Xoay cả bộ:</b><button class="btn ghost" data-all="-90" title="Xoay trái 90°">⟲ Trái</button><button class="btn ghost" data-all="90" title="Xoay phải 90°">⟳ Phải</button><button class="btn ghost" data-all="180">↻ 180°</button><button class="btn ghost" data-all="0">Về gốc</button><span class="sm" style="margin-left:10px">Cỡ:</span><button class="btn ghost" data-zoom="-1" title="Thu nhỏ">A−</button><span class="sm" id="pvZ">100%</span><button class="btn ghost" data-zoom="1" title="Phóng to">A+</button><span class="sm" id="pvRotN"></span></div>
   <div id="pvPages" style="height:64vh;overflow:auto;border:1px solid var(--line);border-radius:8px;background:#eceff3;padding:10px;display:grid;gap:12px;justify-items:center"></div>
-  <div class="row">${buttons}<button class="btn ghost" id="pvDlRot">Tải PDF đã xoay</button></div>`;
+  <div class="row">${buttons}<button class="btn" id="pvPrint" title="In toàn bộ trang đã xoay, đúng chiều">In (đã xoay)</button><button class="btn ghost" id="pvDlRot">Tải PDF đã xoay</button></div>`;
  const box=$('#pvPages');
  box.innerHTML=Array.from({length:N},(_,i)=>`<div class="pvPg" data-i="${i}" style="background:#fff;border-radius:6px;box-shadow:0 1px 4px rgba(0,0,0,.15);padding:6px;max-width:100%"><div class="row" style="margin:0 0 6px;gap:6px;justify-content:space-between"><span class="sm">Trang ${i+1}/${N}</span><span><button class="btn ghost" data-pg="${i}" data-r="-90" title="Xoay trái">⟲</button> <button class="btn ghost" data-pg="${i}" data-r="90" title="Xoay phải">⟳</button></span></div><canvas style="max-width:100%;display:block;margin:auto"></canvas></div>`).join('');
  let zoom=1;const done=new Set();const W0=()=>{const w=box.clientWidth-60;return w>200?Math.min(900,w):700};
@@ -648,6 +660,9 @@ async function pdfViewer(blob,{title,top='',buttons='',name='Chung_tu'}={}){
   if(b.dataset.pg!==undefined){const i=+b.dataset.pg;rot[i]=(rot[i]+ +b.dataset.r+360)%360;redraw(i);info()}
   else if(b.dataset.all!==undefined){const d=+b.dataset.all;for(let i=0;i<N;i++){rot[i]=d===0?0:(rot[i]+d+360)%360;redraw(i)}try{localStorage.setItem('ddk_rot',JSON.stringify({last:d}))}catch{}info()}
   else if(b.dataset.zoom!==undefined){zoom=Math.min(3,Math.max(.5,zoom*(+b.dataset.zoom>0?1.25:0.8)));$('#pvZ').textContent=Math.round(zoom*100)+'%';[...done].forEach(draw)}
+  else if(b.id==='pvPrint'){b.disabled=true;try{if(!window.PDFLib)await lib('https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js');
+   const d=await PDFLib.PDFDocument.load(bytes,{ignoreEncryption:true});d.getPages().forEach((p,i)=>{if(rot[i])p.setRotation(PDFLib.degrees((p.getRotation().angle+rot[i])%360))});
+   printBlob(new Blob([await d.save()],{type:'application/pdf'}))}catch(err){toast('Không chuẩn bị được bản in: '+err.message)}b.disabled=false}
   else if(b.id==='pvDlRot'){b.disabled=true;try{if(!window.PDFLib)await lib('https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js');
    const d=await PDFLib.PDFDocument.load(bytes,{ignoreEncryption:true});d.getPages().forEach((p,i)=>{if(rot[i])p.setRotation(PDFLib.degrees((p.getRotation().angle+rot[i])%360))});
    const out=new Blob([await d.save()],{type:'application/pdf'}),a=document.createElement('a');a.href=URL.createObjectURL(out);a.download=name+'.pdf';document.body.appendChild(a);a.click();a.remove();toast('Đã tải PDF đã xoay đúng chiều')}catch(err){toast('Không tạo được PDF: '+err.message)}b.disabled=false}};
