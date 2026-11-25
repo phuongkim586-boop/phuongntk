@@ -870,7 +870,7 @@ async function loadStats(){
  const rows=await fetchPages(()=>SB.from('v_doi_soat').select('*'),count,1000,null,'so_ct').catch(async()=>{throw new Error('Lỗi tải dữ liệu thống kê')});
  const sc=new Set();for(const d of D){for(const v of [d.s,d.f])for(const m of String(v||'').matchAll(/\d{10}/g))sc.add(m[0]);const s0=String(d.s||'').replace(/\s/g,'');if(s0)sc.add(s0)}
  for(const x of ls.get('driveNames',[]))sc.add(x);
- const list=rows.map(o=>({so:o.so_ct,d:o.ngay||'',u:o.tao_boi||o.nguoi_nhap||'',pm:o.ma_da||'',pn:o.ten_da||'',v:o.ncc||'',tr:o.truck||'',mvs:o.mvt||'',l:o.loai||'Khác',n:o.so_dong,huy:!!o.huy,hx:o.hx||'',po:o.so_po||'',yc:o.so_yc||'',lk:o.link_pdf||o.link_sap||'',sc:!!o.da_scan||sc.has(String(o.so_ct).replace(/\s/g,''))}))
+ const list=rows.map(o=>({so:o.so_ct,d:o.ngay||'',u:(o.tao_boi||o.nguoi_nhap||'').trim().toUpperCase(),pm:o.ma_da||'',pn:o.ten_da||'',v:o.ncc||'',tr:o.truck||'',mvs:o.mvt||'',l:o.loai||'Khác',n:o.so_dong,huy:!!o.huy,hx:o.hx||'',po:o.so_po||'',yc:o.so_yc||'',lk:o.link_pdf||o.link_sap||'',sc:!!o.da_scan||sc.has(String(o.so_ct).replace(/\s/g,''))}))
   .sort((a,b)=>(b.d||'').localeCompare(a.d||'')||b.so.localeCompare(a.so));
  STK={list,at:new Date(),rows:list.reduce((x,o)=>x+o.n,0)};return STK}
 /* Đồng bộ Google Sheet "Trang tính6" -> bảng sap_dong trên Supabase. Chạy lại nhiều lần không tạo bản ghi trùng (upsert theo khoá nghiệp vụ). */
