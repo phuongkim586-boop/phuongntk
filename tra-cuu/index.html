@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
+<link rel="preconnect" href="https://zpdbodcnhhbbhuyisgjc.supabase.co" crossorigin>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Tra cứu chứng từ kho An Hạ – Đại Dũng</title>
@@ -160,6 +161,7 @@ details ol{padding-left:18px;margin:6px 0}
 @media (max-width:860px){.app{grid-template-columns:1fr}.side{position:fixed;left:0;top:0;width:280px;z-index:20;transform:translateX(-105%);transition:transform .25s}.side.open{transform:none}.burger{display:grid}.top .meta{display:none}}
 @media (max-width:600px){.sbox{flex-direction:column}.btn.big{width:100%}.kv{grid-template-columns:1fr}.hide-s{display:none}table{font-size:13px}}
 th select.hf{display:block;margin-top:4px;font:inherit;font-size:12px;font-weight:600;text-transform:none;padding:3px 4px;border:1px solid var(--line,#ddd);border-radius:6px;max-width:150px;background:#fff;color:inherit}
+ul.stl{margin:0;padding-left:20px;line-height:1.7}ul.stl li{margin:2px 0}
 </style>
 </head>
 <body>
@@ -273,8 +275,8 @@ const SB=supabase.createClient("https://zpdbodcnhhbbhuyisgjc.supabase.co","sb_pu
 let ME={email:'',admin:false};
 async function checkAccount(session){
  const em=session.user.email||'';
- const {data:tk,error}=await SB.from('tai_khoan').select('trang_thai,la_quan_tri').eq('id',session.user.id).maybeSingle();
- if(!error&&tk&&tk.trang_thai==='da_duyet'){ME={email:em,admin:!!tk.la_quan_tri};$('#wait').style.display='none';showWho();$('#navDL').style.display=ME.admin?'':'none';$('#navTK').style.display=ME.admin?'':'none';if(ME.admin)pendingBadge(true);return true}
+ const {data:tk,error}=await SB.from('tai_khoan').select('trang_thai,la_quan_tri,vai_tro').eq('id',session.user.id).maybeSingle();
+ if(!error&&tk&&tk.trang_thai==='da_duyet'){ME={email:em,admin:!!tk.la_quan_tri,sa:tk.vai_tro==='super_admin'};$('#wait').style.display='none';showWho();$('#navDL').style.display=ME.admin?'':'none';$('#navTK').style.display=ME.admin?'':'none';if(ME.admin)pendingBadge(true);return true}
  ME={email:em,admin:false};
  $('#wMsg').textContent=error?'Không kiểm tra được tài khoản: '+error.message
   :!/@daidung\.vn$/i.test(em)?'Tài khoản '+em+' không thuộc tên miền @daidung.vn nên không dùng được hệ thống. Bấm Đăng xuất rồi chọn tài khoản công ty.'
@@ -282,7 +284,7 @@ async function checkAccount(session){
   :tk.trang_thai==='tu_choi'?'Tài khoản '+em+' chưa được cấp quyền xem dữ liệu. Liên hệ quản trị viên nếu cần.'
   :'Tài khoản '+em+' đã đăng ký và đang chờ quản trị viên duyệt. Khi được duyệt, bấm "Kiểm tra lại".';
  $('#wait').style.display='grid';$('#view').innerHTML='';return false}
-function showWho(){const w=$('#who');if(!w)return;$('#whoMail').textContent=ME.email+(ME.admin?' · Quản trị':'');
+function showWho(){const w=$('#who');if(!w)return;$('#whoMail').textContent=ME.email+(ME.sa?' · Super Admin':ME.admin?' · Quản trị':'');
  const tz=(()=>{try{return Intl.DateTimeFormat().resolvedOptions().timeZone}catch{return ''}})();
  const tick=()=>{const d=new Date(),o=-d.getTimezoneOffset(),h=Math.trunc(Math.abs(o)/60),m=Math.abs(o)%60;
   $('#whoTz').textContent=d.toLocaleString('vi-VN',{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit',year:'numeric'})+' · GMT'+(o<0?'-':'+')+h+(m?':'+String(m).padStart(2,'0'):'')+(tz?' ('+tz+')':'')};
@@ -291,28 +293,40 @@ function setBadge(n){const b=$('#bdTK');if(!b)return;b.textContent=n||'';b.style
 async function pendingBadge(showToast){if(!ME.admin)return;const {count}=await SB.from('tai_khoan').select('id',{count:'exact',head:true}).eq('trang_thai','cho_duyet');setBadge(count||0);if(showToast&&count)toast('Có '+count+' tài khoản đang chờ duyệt (mục 4. Dữ liệu & tài khoản)',6000)}
 /* Nguồn tra cứu duy nhất: thư mục Bo_Phieu_Da_Tach_2026 trên Google Drive */
 const SRC_FOLDER='Bo_Phieu_Da_Tach_2026',SRC_FOLDER_ID='1Bebr1uEJqY_y2W2NEN2MMd66roD_VH_D';
-async function load(){
+const COLS_V='drive_id,so_phieu,loai,ngay,ngay_uoc_tinh,du_an_ma,du_an,wbs,nha_cung_cap,ncc_noi_bo,bo_phan,dien_giai,loai_giao_dich,lenh_po,tong_so_luong,ten_tep,thu_muc,kich_thuoc,ngay_tai_len,co_noi_dung,noi_dung,so_xe';
+async function fetchPages(q0,total,P,onPage){const pages=Math.ceil(total/P),parts=new Array(pages);let next=0,done=0;
+ const worker=async()=>{while(next<pages){const i=next++;let r,tries=0;
+  do{r=await q0().order('drive_id').range(i*P,i*P+P-1)}while(r.error&&++tries<3);
+  if(r.error)throw r.error;parts[i]=r.data;done++;onPage&&onPage(done,parts)}};
+ await Promise.all(Array.from({length:Math.min(8,pages)},worker));return parts.flat()}
+async function load(force){
  const {data:{session}}=await SB.auth.getSession();
  if(!session){$('#login').style.display='grid';$('#view').innerHTML='';return}
  $('#login').style.display='none';
+ const cacheP=IDB.get('docs');
  if(!(await checkAccount(session)))return;
- const cache=await IDB.get('docs');if(cache&&cache.rows&&cache.src===SRC_FOLDER){D=cache.rows.map(prep);index();route()}
- const {count}=await SB.from('chung_tu').select('drive_id',{count:'exact',head:true}).eq('thu_muc',SRC_FOLDER);
+ const cache=await cacheP;const hasC=cache&&cache.rows&&cache.src===SRC_FOLDER;
+ if(hasC&&!force){D=cache.rows.map(prep);index();route()}
+ const [{count},{data:last}]=await Promise.all([
+  SB.from('chung_tu').select('drive_id',{count:'exact',head:true}).eq('thu_muc',SRC_FOLDER),
+  SB.from('chung_tu').select('dong_bo_luc').eq('thu_muc',SRC_FOLDER).order('dong_bo_luc',{ascending:false}).limit(1)]);
  if(!count){$('#view').innerHTML='<div class="notice">Chưa đọc được dữ liệu chứng từ. Vào mục 4 bấm Tải lại dữ liệu, hoặc báo quản trị viên.</div>';return}
- const {data:last}=await SB.from('chung_tu').select('dong_bo_luc').order('dong_bo_luc',{ascending:false}).limit(1);
  const t=last&&last[0]&&last[0].dong_bo_luc;
  if(t){try{ls.set('lastSync',new Date(t).toLocaleString('vi-VN',{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit',year:'numeric'}));$('#meta').textContent='Cập nhật danh mục: '+ls.get('lastSync','')}catch{}}
- if(cache&&cache.n===count&&cache.t===t&&cache.src===SRC_FOLDER)return;
- const COLS='drive_id,so_phieu,loai,ngay,ngay_uoc_tinh,du_an_ma,du_an,wbs,nha_cung_cap,ncc_noi_bo,bo_phan,dien_giai,loai_giao_dich,lenh_po,tong_so_luong,ten_tep,thu_muc,kich_thuoc,ngay_tai_len,co_noi_dung,noi_dung,so_xe';
- const P=1000,pages=Math.ceil(count/P),parts=new Array(pages);let done=0,next=0,shown=!!D.length;
- const prog=()=>{const n=Math.min(done*P,count);$('#sidefoot').innerHTML=`Đang tải dữ liệu… ${fmt(n)}/${fmt(count)}`;if(!shown)$('#view').innerHTML=`<div class="empty">Đang tải dữ liệu chứng từ… ${fmt(n)}/${fmt(count)}</div>`};
- prog();
- const worker=async()=>{while(next<pages){const i=next++;let r,tries=0;
-  do{r=await SB.from('v_tra_cuu').select(COLS).eq('thu_muc',SRC_FOLDER).order('drive_id').range(i*P,i*P+P-1)}while(r.error&&++tries<3);
-  if(r.error)throw r.error;parts[i]=r.data.map(fromRow);done++;prog();
-  if(!shown&&done>=3){shown=true;D=parts.filter(Boolean).flat().map(prep);index();route()}}};
- await Promise.all(Array.from({length:6},worker));
- const all=parts.flat();
+ if(hasC&&cache.n===count&&cache.t===t)return;
+ let all=null;
+ /* Cập nhật gia tăng: chỉ tải các dòng mới / thay đổi kể từ lần trước */
+ if(hasC&&cache.t&&cache.n<=count){
+  try{const {count:nc}=await SB.from('v_tra_cuu').select('drive_id',{count:'exact',head:true}).eq('thu_muc',SRC_FOLDER).gt('dong_bo_luc',cache.t);
+   if(nc!=null&&nc<=20000){const ch=nc?(await fetchPages(()=>SB.from('v_tra_cuu').select(COLS_V).eq('thu_muc',SRC_FOLDER).gt('dong_bo_luc',cache.t),nc,1000)).map(fromRow):[];
+    const m=new Map(cache.rows.map(r=>[r.i,r]));ch.forEach(r=>m.set(r.i,r));
+    if(m.size===count)all=[...m.values()]}}catch{all=null}}
+ if(!all){
+  const shownEarly=!!D.length&&!force;let shown=shownEarly;
+  const prog=(d)=>{const n=Math.min(d*1000,count);$('#sidefoot').innerHTML=`Đang tải dữ liệu… ${fmt(n)}/${fmt(count)}`;if(!shown)$('#view').innerHTML=`<div class="empty">Đang tải dữ liệu chứng từ… ${fmt(n)}/${fmt(count)}</div>`};
+  prog(0);
+  all=(await fetchPages(()=>SB.from('v_tra_cuu').select(COLS_V).eq('thu_muc',SRC_FOLDER),count,1000,(d,parts)=>{prog(d);if(!shown&&d>=2){shown=true;D=parts.filter(Boolean).flat().map(fromRow).map(prep);index();route()}})).map(fromRow);
+ }
  await IDB.set('docs',{n:count,t,src:SRC_FOLDER,rows:all});
  D=all.map(prep);index();route();
 }
@@ -366,6 +380,8 @@ function parseQ(q){
  let s=' '+K(q).replace(/\s+/g,' ')+' ';const f={raw:q,words:[],labels:[]};
  const take=(re,fn)=>{s=s.replace(re,(...a)=>{fn(...a);return ' '})};
  take(/\b(px|nm|nk|nt|dc|di)\s?(\d{2})\s?(\d{2})\s?(\d{3,5})\b/g,(m,a,b,c,d)=>{f.so=(a.toUpperCase()+b+'/'+c+'-'+d.padStart(4,'0'));f.labels.push('Số phiếu '+f.so)});
+ take(/\b(?:po\s?)?(41\d{8})\b/g,m=>{f.po=m.replace(/\D/g,'');f.labels.push('Số PO '+f.po)});
+ take(/\b(?:(?:pr|yc|yeu cau)\s?)?(1[17]\d{8})\b/g,m=>{f.pr=m.replace(/\D/g,'');f.labels.push('Số yêu cầu '+f.pr)});
  take(/\b(4\d{9}|5\d{9})\b/g,m=>{f.so=m;f.labels.push('Số phiếu SAP '+m)});
  take(/\b(1\d{4})\s(\d{2,5})(?:\s([a-z]{2,6}))?\b/g,(m,a,b,c)=>{f.wbs=(a+'-'+b+(c?'-'+c:'')).toUpperCase();f.labels.push('Mã WBS '+f.wbs)});
  take(/\b(tctn|xknn|tcnn|xktn|ctnb)\s?(d\d|dksa|3dmt)\s?(\d{2})\s?(\d{2,3})?\b/g,(m,a,b,c,d)=>{f.pm=(a+'.'+b+'.'+c+(d?'.'+d:'')).toUpperCase().replace('.DKSA','.DKSA');f.labels.push('Mã công trình '+f.pm)});
@@ -384,6 +400,7 @@ function simW(q,name){const w=name.split(' ').filter(Boolean),n=q.split(' ').len
 function sim(a,b){const A=tri(a),B=tri(b);let n=0;for(const x of A)if(B.has(x))n++;return 2*n/(A.size+B.size)}
 function run(f){
  let R=D,how=[];
+ if(f.po||f.pr){const S=f.sos||new Set();R=R.filter(r=>S.has(r.s));how.push('Số PO / Số yêu cầu (SAP: '+S.size+' chứng từ)')}
  if(f.so){R=R.filter(r=>r.s===f.so||K(r.s)===K(f.so))}
  if(f.tail){const t=f.tail.replace(/^0+/,'');R=R.filter(r=>r.s5.replace(/^0+/,'').endsWith(t)&&(f.tail.length<5||r.s5.replace(/^0+/,'')===t||r.s5.endsWith(f.tail)))}
  if(f.wbs){R=R.filter(r=>(r.w||r.m||'').toUpperCase().startsWith(f.wbs))}
@@ -411,7 +428,7 @@ function run(f){
    }
   }
  }
- if(!f.so&&!f.tail&&!f.wbs&&!f.pm&&!f.day&&!f.month&&!f.year&&!f.types&&!f.words.length)R=[];
+ if(!f.po&&!f.pr&&!f.so&&!f.tail&&!f.wbs&&!f.pm&&!f.day&&!f.month&&!f.year&&!f.types&&!f.words.length)R=[];
  return {R,fuzzy,how};
 }
 function hl(text,f){let t=esc(text);const ws=[...f.words];if(f.tail)ws.push(f.tail);
@@ -474,11 +491,13 @@ addEventListener('keydown',e=>{if(e.key==='Escape')$('#dlg').classList.remove('o
 function vSearch(){
  $('#ttl').textContent='Tra cứu chứng từ kho';
  $('#view').innerHTML=`<div class="card"><p class="lbl"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>NHẬP THÔNG TIN CẦN TRA CỨU &amp; XEM TRỌN BỘ HỒ SƠ</p>
- <form class="sbox" id="sf"><label class="sfield"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--mut)"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="q" autocomplete="off" list="sugg" placeholder="Nhập Số phiếu (PX25/10-3836, 4900088403), 5 số cuối (03836), Mã WBS (10626-051), Tên dự án (Evapco, Hùng Vương), Nhà cung cấp, Ngày (24/10/2025)…"></label><button class="btn big" type="submit"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Tra cứu</button><button class="btn big ghost" type="button" id="qClr" title="Xoá ô tìm và kết quả (phím Esc)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M18 6 6 18M6 6l12 12"/></svg>Xoá lọc</button></form>
+ <form class="sbox" id="sf"><label class="sfield"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--mut)"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="q" autocomplete="off" list="sugg" placeholder="Nhập Số phiếu (PX25/10-3836, 4900088403), Số PO (4100009106), Số yêu cầu (1100007204), 5 số cuối (03836), Mã WBS (10626-051), Tên dự án (Evapco, Hùng Vương), Nhà cung cấp, Ngày (24/10/2025)…"></label><button class="btn big" type="submit"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Tra cứu</button><button class="btn big ghost" type="button" id="qClr" title="Xoá ô tìm và kết quả (phím Esc)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M18 6 6 18M6 6l12 12"/></svg>Xoá lọc</button></form>
  <datalist id="sugg">${projects.slice(0,120).map(p=>`<option value="${esc(p.p||p.m)}">`).join('')}${suppliers.slice(0,120).map(s=>`<option value="${esc(s.n)}">`).join('')}</datalist>
  <div class="hint"><b>Gợi ý tra cứu:</b> Tra cứu theo <b>Số phiếu chính</b> (ra đúng 1 bộ hồ sơ chi tiết) hoặc lọc theo <b>Ngày</b> (ra trọn 1 tệp ngày kèm bảng kê). Có thể gõ nhiều điều kiện cùng lúc, ví dụ: <i>phiếu xuất evapco 10/2025</i>. Hỗ trợ tiếng Việt không dấu và tìm gần đúng.</div></div>
  <div id="res"></div>`;
- const go=q=>{q=q.trim();if(!q){$('#res').innerHTML='';return}const f=parseQ(q);const {R,fuzzy,how}=run(f);log('Tra cứu',q,R.length);ls.set('lastQ',q);showRes(f,R,fuzzy,how)};
+ const go=async q=>{q=q.trim();if(!q){$('#res').innerHTML='';return}const f=parseQ(q);
+  if(f.po||f.pr){const {data}=await SB.from('sap_dong').select('so_ct').eq(f.po?'so_po':'so_yc',f.po||f.pr).limit(5000);f.sos=new Set((data||[]).map(x=>x.so_ct))}
+  const {R,fuzzy,how}=run(f);log('Tra cứu',q,R.length);ls.set('lastQ',q);showRes(f,R,fuzzy,how)};
  $('#sf').onsubmit=e=>{e.preventDefault();go($('#q').value)};
  const clrBtn=()=>{};
  const clr=()=>{$('#q').value='';$('#res').innerHTML='';ls.set('lastQ','');clrBtn();$('#q').focus()};
@@ -687,11 +706,10 @@ function vExport(){
 /* ---------- Quản lý dữ liệu ---------- */
 function vData(sub){
  $('#ttl').textContent='Quản lý dữ liệu';
- const tabs=[['all','Toàn bộ chứng từ'],['proj','Dự án'],['ncc','Nhà cung cấp'],['type','Loại chứng từ'],['dup','Trùng lặp'],['miss','Thiếu thông tin'],['sync','Trạng thái đồng bộ'],['log','Nhật ký']];
+ const tabs=[['all','Toàn bộ chứng từ'],['proj','Dự án'],['ncc','Nhà cung cấp'],['type','Loại chứng từ'],['dup','Trùng lặp'],['sync','Trạng thái đồng bộ'],['log','Nhật ký']];
  sub=sub||'all';
  const dups=[...bySo.entries()].filter(([s,a])=>a.length>1);
- const miss=D.filter(r=>r.oc===0||r.ds||!r.d||r.de||((r.l==='PX'||r.l==='GI')&&!r.p&&!r.m)||((r.l==='NM'||r.l==='NK'||r.l==='GR')&&!r.n));
- $('#view').innerHTML=`<div class="kpis"><div class="kpi"><b>${fmt(D.length)}</b><span>chứng từ trong danh mục</span></div><div class="kpi"><b>${fmt(projects.length)}</b><span>dự án / mã công trình</span></div><div class="kpi"><b>${fmt(suppliers.length)}</b><span>nhà cung cấp</span></div><div class="kpi"><b>${fmt(dups.length)}</b><span>số phiếu có nhiều tệp</span></div><div class="kpi"><b>${fmt(miss.length)}</b><span>chứng từ thiếu thông tin</span></div></div>
+ $('#view').innerHTML=`<div class="kpis"><div class="kpi"><b>${fmt(D.length)}</b><span>chứng từ trong danh mục</span></div><div class="kpi"><b>${fmt(projects.length)}</b><span>dự án / mã công trình</span></div><div class="kpi"><b>${fmt(suppliers.length)}</b><span>nhà cung cấp</span></div><div class="kpi"><b>${fmt(dups.length)}</b><span>số phiếu có nhiều tệp</span></div></div>
  <div class="tabs" id="dt">${tabs.map(t=>`<button data-t="${t[0]}" class="${t[0]===sub?'on':''}">${t[1]}</button>`).join('')}</div><div id="dv"></div>`;
  $('#dt').onclick=e=>{const b=e.target.closest('button');if(b)vData(b.dataset.t)};
  const dv=$('#dv');
@@ -701,8 +719,6 @@ function vData(sub){
  if(sub==='type'){const c={};D.forEach(r=>c[r.l]=(c[r.l]||0)+1);const ks=Object.keys(TY).filter(k=>c[k]);const mx=Math.max(...ks.map(k=>c[k]));
   dv.innerHTML=`<div class="card">${ks.map(k=>`<div style="display:grid;grid-template-columns:minmax(0,220px) minmax(0,1fr) 70px;gap:12px;align-items:center;margin:8px 0"><span><span class="tag">${k}</span> ${TY[k]}</span><div class="bar"><i style="width:${c[k]/mx*100}%"></i></div><b style="text-align:right">${fmt(c[k])}</b></div>`).join('')}</div>`}
  if(sub==='dup'){dv.innerHTML=`<div class="notice">Cùng một số phiếu xuất hiện ở nhiều tệp – thường là bản sao giữa hai thư mục. Hệ thống không tự xoá; hãy đối chiếu rồi xử lý trên Drive.</div>`+listTbl(['Số phiếu','Số tệp','Các tệp / thư mục'],dups.map(([s,a])=>[s,a.length,a.map(r=>r.f+' ('+r.fo.replace('Bo_Phieu_Da_Tach_','')+')').join('; ')]),i=>detail(dups[i][1][0]))}
- if(sub==='miss'){const why=r=>[r.oc===0?'Chưa có nội dung OCR':'',r.de?'Ngày ước tính':'',r.ds?'Năm đã chỉnh (OCR đọc sai)':'',!r.d?'Thiếu ngày':'',(r.l==='PX'||r.l==='GI')&&!r.p&&!r.m?'Thiếu dự án':'',(r.l==='NM'||r.l==='NK'||r.l==='GR')&&!r.n?'Thiếu NCC':''].filter(Boolean).join(', ');
-  dv.innerHTML=listTbl(['Số phiếu','Loại','Ngày','Thiếu','Tệp'],miss.map(r=>[r.s,r.l,fd(r.d),why(r),r.f]),i=>detail(miss[i]))}
  if(sub==='sync'){const st=ls.get('sb',{});const pushed=new Set(ls.get('pushed',[]));const n=D.filter(r=>pushed.has(r.i)).length;
   dv.innerHTML=`<div class="grid2"><div class="card"><h3 style="margin-top:0">Google Drive → danh mục</h3><p>Lần quét gần nhất: <b>${esc(ls.get('lastSync','21/11/2026 (bản dựng ban đầu)'))}</b><br>Chứng từ bổ sung qua đồng bộ: <b>${fmt(ls.get('extra',[]).length)}</b></p><div class="row" style="margin-top:0"><button class="btn" id="dSync">Quét chứng từ mới trên Drive</button><button class="btn ghost" id="dFull">Quét toàn bộ thư mục</button></div><div id="dSyncS" class="sm" style="margin-top:8px"></div></div>
   <div class="card"><h3 style="margin-top:0">Danh mục → Supabase</h3><p>Dự án: <b>${esc(st.project||'chưa cấu hình')}</b><br>Đã chuyển: <b>${fmt(n)}</b> / ${fmt(D.length)}</p><div class="bar"><i style="width:${D.length?n/D.length*100:0}%"></i></div><div class="row"><button class="btn ghost" data-go="supabase">Mở Kết nối Supabase</button></div></div></div>`;
@@ -755,12 +771,12 @@ async function push(rows,label){
 async function vSupabase(){
  $('#ttl').textContent='Dữ liệu & tài khoản';const {data:{user}}=await SB.auth.getUser();
  const {data:tt}=await SB.from('v_tinh_trang').select('*');
- $('#view').innerHTML=`<div class="grid2"><div class="card"><h3 style="margin-top:0">Tài khoản</h3><p>Đang đăng nhập: <b>${esc(user&&user.email)}</b></p><p class="sm">Vai trò: ${ME.admin?'Quản trị viên':'Nhân viên đã được duyệt'}</p><div class="row"><button class="btn ghost" id="reload">Tải lại dữ liệu</button><button class="btn" id="logout">Đăng xuất</button></div></div>
+ $('#view').innerHTML=`<div class="grid2"><div class="card"><h3 style="margin-top:0">Tài khoản</h3><p>Đang đăng nhập: <b>${esc(user&&user.email)}</b></p><p class="sm">Vai trò: ${ME.sa?'Super Admin (toàn quyền hệ thống)':ME.admin?'Quản trị viên':'Nhân viên đã được duyệt'}</p><div class="row"><button class="btn ghost" id="reload">Cập nhật dữ liệu mới</button><button class="btn" id="logout">Đăng xuất</button></div></div>
  <div class="card"><h3 style="margin-top:0">Nguồn dữ liệu</h3><p>Dữ liệu lấy từ Supabase (dự án kho-an-ha-chung-tu), đọc từ thư mục Bo_Phieu_Da_Tach_2026 trên Google Drive${DUPS.size?` (đã tự ẩn ${fmt(DUPS.size)} tệp trùng số phiếu, giữ bản đầy đủ nhất)`:''}. Việc quét Drive, chuyển dữ liệu và xuất PDF gộp được thực hiện trong bản nội bộ trên Claude.</p></div></div>
  ${ME.admin?'<h3 style="margin-top:22px">Duyệt tài khoản</h3><div id="tkBox"><div class="empty">Đang tải danh sách tài khoản…</div></div>':''}<h3>Tình trạng theo loại chứng từ</h3><div id="tt"></div>`;
  $('#tt').innerHTML=listTbl(['Loại','Số chứng từ','Thiếu ngày','Thiếu dự án','Thiếu NCC','Chưa OCR'],(tt||[]).map(x=>[TY[x.loai]||x.loai,+x.so_chung_tu,+x.thieu_ngay,+x.thieu_du_an,+x.thieu_ncc,+x.chua_ocr]));
  $('#logout').onclick=async()=>{await SB.auth.signOut();try{indexedDB.deleteDatabase('ddk_kho')}catch{}location.reload()};
- $('#reload').onclick=async()=>{await IDB.set('docs',null);location.reload()};
+ $('#reload').onclick=async()=>{const b=$('#reload');b.disabled=true;b.textContent='Đang cập nhật…';try{await load(false);toast('Đã cập nhật dữ liệu mới nhất')}catch(e){toast('Không cập nhật được: '+e.message,6000)}b.disabled=false;b.textContent='Cập nhật dữ liệu mới'};
  if(ME.admin)renderAccounts();
 }
 async function renderAccounts(){
@@ -804,32 +820,63 @@ async function driveScanNames(tk,onProg){const names=new Set(),q=[...SCAN_FOLDER
  return names}
 let STK=null;
 async function loadStats(){
- const tk=await driveToken();if(!tk)throw new Error('Chưa cấp quyền đọc Google (cửa sổ cấp quyền bị đóng).');
- const rg=['B2:D','K2:L','N2:P','R2:R','U2:U','X2:X'].map(x=>'ranges='+encodeURIComponent("'"+STK_SHEET+"'!"+x)).join('&');
- const r=await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${STK_ID}/values:batchGet?${rg}&majorDimension=COLUMNS&valueRenderOption=FORMATTED_VALUE`,{headers:{Authorization:'Bearer '+tk}});
- if(!r.ok){let m='';try{m=(await r.json()).error.message||''}catch{}if(r.status===401)GTOK={t:'',exp:0};
-  if(/has not been used|disabled|SERVICE_DISABLED/i.test(m))throw new Error('Google Sheets API chưa được bật trong project Kho An Ha. Bật tại: https://console.cloud.google.com/apis/library/sheets.googleapis.com?project=kho-an-ha');
-  if(r.status===403||r.status===404)throw new Error('Tài khoản này chưa có quyền xem tệp "06. SCRIP CẢNH BÁO PR CHƯA NHẬP KHO".');
-  throw new Error('Lỗi đọc Google Sheet ('+r.status+') '+m)}
- const vr=(await r.json()).valueRanges.map(x=>x.values||[]);
- const [B,C,Dd]=[vr[0][0]||[],vr[0][1]||[],vr[0][2]||[]],[PJ,PN]=[vr[1][0]||[],vr[1][1]||[]],[N,O,P]=[vr[2][0]||[],vr[2][1]||[],vr[2][2]||[]],R=vr[3][0]||[],U=vr[4][0]||[],X=(vr[5]&&vr[5][0])||[];
- const scanned=new Set();
- try{const nm=await driveScanNames(tk,n=>{const m=$('#stMsg');if(m)m.textContent='Đang đối chiếu tệp đã scan trên Drive: '+fmt(n)+' tệp…'});for(const f of nm){for(const m of String(f).matchAll(/\d{10}/g))scanned.add(m[0]);scanned.add(String(f).replace(/\.pdf$/i,'').replace(/_/g,'/').replace(/\s/g,''))}}catch(e){toast(e.message+' – tạm đối chiếu theo danh mục.',8000)}
- for(const d of D){for(const v of [d.s,d.f])for(const m of String(v||'').matchAll(/\d{10}/g))scanned.add(m[0]);const s0=String(d.s||'').replace(/\s/g,'');if(s0)scanned.add(s0)}
+ const {count,error:e0}=await SB.from('v_sap_ct').select('so_ct',{count:'exact',head:true});
+ if(e0)throw new Error('Không đọc được dữ liệu SAP trên máy chủ: '+e0.message);
+ if(!count)throw new Error('NOSAP');
+ const rows=await fetchPages(()=>SB.from('v_sap_ct').select('*'),count,1000).catch(async()=>{throw new Error('Lỗi tải dữ liệu thống kê')});
+ const sc=new Set();for(const d of D){for(const v of [d.s,d.f])for(const m of String(v||'').matchAll(/\d{10}/g))sc.add(m[0]);const s0=String(d.s||'').replace(/\s/g,'');if(s0)sc.add(s0)}
+ for(const x of ls.get('driveNames',[]))sc.add(x);
+ const list=rows.map(o=>({so:o.so_ct,d:o.ngay||'',u:o.nguoi_nhap||'',pm:o.ma_da||'',pn:o.ten_da||'',v:o.ncc||'',tr:o.truck||'',mvs:o.mvt||'',l:o.loai||'Khác',n:o.so_dong,huy:!!o.huy,hx:o.hx||'',po:o.so_po||'',yc:o.so_yc||'',sc:sc.has(String(o.so_ct).replace(/\s/g,''))}))
+  .sort((a,b)=>(b.d||'').localeCompare(a.d||'')||b.so.localeCompare(a.so));
+ STK={list,at:new Date(),rows:list.reduce((x,o)=>x+o.n,0)};return STK}
+/* Đồng bộ Google Sheet "Trang tính6" -> bảng sap_dong trên Supabase. Chạy lại nhiều lần không tạo bản ghi trùng (upsert theo khoá nghiệp vụ). */
+async function syncSap(onMsg){
+ const tk=await driveToken();if(!tk)throw new Error('Chưa cấp quyền đọc Google.');
+ onMsg&&onMsg('Đang đọc Google Sheet…');
+ const r=await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${STK_ID}/values/${encodeURIComponent("'"+STK_SHEET+"'!A2:AD")}?valueRenderOption=FORMATTED_VALUE`,{headers:{Authorization:'Bearer '+tk}});
+ if(!r.ok){let m='';try{m=(await r.json()).error.message||''}catch{}if(r.status===401)GTOK={t:'',exp:0};throw new Error(r.status===403||r.status===404?'Tài khoản này chưa có quyền xem tệp "06. SCRIP CẢNH BÁO PR CHƯA NHẬP KHO".':'Lỗi đọc Google Sheet ('+r.status+') '+m)}
+ const V=(await r.json()).values||[];
+ const pd=s=>{const m=/(\d{1,2})\s*\/\s*(\d{1,2})\s*\/\s*(\d{4})/.exec(s||'');return m?`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`:null};
+ const num=x=>{x=String(x||'').trim().replace(/\s/g,'');if(!x)return null;const n=/,/.test(x)||/^-?\d{1,3}(\.\d{3})+$/.test(x)?Number(x.replace(/\./g,'').replace(',','.')):Number(x);return isFinite(n)?n:null};
  const cls=(t,dc)=>{t=K(t);if(/chuyen/.test(t))return 'Chuyển kho';if(/\bnk\b|nhap/.test(t))return 'Nhập';if(/xuat/.test(t))return 'Xuất';return dc==='S'?'Nhập':dc==='H'?'Xuất':'Khác'};
- const pd=s=>{const m=/(\d{1,2})\s*\/\s*(\d{1,2})\s*\/\s*(\d{4})/.exec(s||'');return m?`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`:''};
- const docs=new Map(),n=C.length;
- for(let i=0;i<n;i++){const so=String(C[i]||'').trim();if(!so)continue;let o=docs.get(so);
-  if(!o){o={so,d:pd(Dd[i]),u:String(B[i]||'').trim(),pm:String(PJ[i]||'').trim(),pn:String(PN[i]||'').trim(),v:String(R[i]||'').trim(),tr:String(U[i]||'').trim(),mv:new Set(),c:{},n:0,huy:false,hx:''};docs.set(so,o)}
-  {const xv=String(X[i]||'').trim();if(xv){o.huy=true;if(!o.hx)o.hx=xv}}
-  o.n++;if(N[i])o.mv.add(String(N[i]).trim());const c=cls(O[i],String(P[i]||'').trim().toUpperCase());o.c[c]=(o.c[c]||0)+1}
- const list=[...docs.values()].map(o=>{o.l=o.c['Chuyển kho']?'Chuyển kho':Object.entries(o.c).sort((a,b)=>b[1]-a[1])[0][0];o.sc=scanned.has(o.so.replace(/\s/g,''));o.mvs=[...o.mv].join(', ');return o}).sort((a,b)=>(b.d||'').localeCompare(a.d||'')||b.so.localeCompare(a.so));
- STK={list,at:new Date(),rows:n};return STK}
+ const seen=new Map(),out=[];
+ for(const c of V){const g=i=>String(c[i]==null?'':c[i]).trim();const so=g(2);if(!so)continue;
+  const base=[so,g(5),g(7),g(9),g(10),g(13),g(15),g(21),g(25),g(23)].join('|');const k=(seen.get(base)||0)+1;seen.set(base,k);
+  out.push({khoa:base+'#'+k,so_ct:so,ngay:pd(g(3)),nguoi_nhap:g(0),tao_boi:g(1),nhom_vt:g(4),ma_vt:g(5),ten_vt:g(6),batch:g(7),dvt:g(8),so_luong:num(g(9)),ma_da:g(10),ten_da:g(11),kho:g(12),mvt:g(13),mvt_text:g(14),dc:g(15),plant:g(16),ncc:g(17),truck:g(20),so_yc:g(21),reversal:g(23),delivery:g(24),so_po:g(25),mo_ta_pr:g(26),so_tk:g(27),loai:cls(g(14),g(15).toUpperCase()),dong_bo_luc:new Date().toISOString()})}
+ let done=0;const B=1000,nb=Math.ceil(out.length/B);let nx=0;
+ const w=async()=>{while(nx<nb){const i=nx++;let e,t=0;do{({error:e}=await SB.from('sap_dong').upsert(out.slice(i*B,i*B+B),{onConflict:'khoa'}))}while(e&&++t<3);
+  if(e)throw new Error('Ghi Supabase lỗi: '+e.message);done+=Math.min(B,out.length-i*B);onMsg&&onMsg(`Đang ghi lên máy chủ: ${fmt(done)}/${fmt(out.length)} dòng…`)}};
+ await Promise.all(Array.from({length:Math.min(3,nb)},w));
+ pushLog('Đồng bộ SAP','Google Sheet → Supabase',out.length);
+ return out.length}
+/* Quét thư mục chứng từ trên Drive, bổ sung các chứng từ hợp lệ chưa scan có tệp thật vào danh mục (Supabase) */
+async function addMissing(rows,onMsg){
+ const tk=await driveToken();if(!tk)throw new Error('Chưa cấp quyền đọc Google Drive.');
+ const todo=rows.filter(o=>!o.huy&&!o.sc);if(!todo.length)return {added:0,none:0,todo:0};
+ const files=new Map(),q=[SRC_FOLDER_ID],seenF=new Set();let nf=0;
+ while(q.length){const id=q.shift();if(seenF.has(id))continue;seenF.add(id);let pt='';
+  do{const r=await fetch('https://www.googleapis.com/drive/v3/files?pageSize=1000&supportsAllDrives=true&includeItemsFromAllDrives=true&fields=nextPageToken,files(id,name,mimeType,size,createdTime)&q='+encodeURIComponent(`'${id}' in parents and trashed=false`)+(pt?'&pageToken='+pt:''),{headers:{Authorization:'Bearer '+tk}});
+   if(!r.ok)throw new Error('Không đọc được thư mục trên Drive ('+r.status+')');const j=await r.json();
+   for(const f of j.files||[]){if(f.mimeType==='application/vnd.google-apps.folder')q.push(f.id);else{nf++;for(const m of String(f.name).matchAll(/\d{10}/g)){const a=files.get(m[0])||[];a.push(f);files.set(m[0],a)}}}
+   pt=j.nextPageToken||'';onMsg&&onMsg(`Đang đối chiếu thư mục Drive: ${fmt(nf)} tệp…`)}while(pt)}
+ const have=new Set(D.map(d=>d.i)),add=[],names=ls.get('driveNames',[]);let none=0;
+ for(const o of todo){const fl=files.get(o.so);if(!fl){none++;continue}
+  names.push(o.so);const f=fl.slice().sort((a,b)=>(+b.size||0)-(+a.size||0))[0];if(have.has(f.id))continue;have.add(f.id);
+  const gi=/^49/.test(o.so);
+  add.push({drive_id:f.id,so_phieu:o.so,loai:gi?'GI':'GR',loai_ten:gi?'Phiếu xuất kho (SAP)':'Phiếu nhập kho (SAP)',ngay:o.d||null,ngay_uoc_tinh:false,du_an_ma:o.pm||null,du_an:o.pn||null,wbs:o.pm||null,nha_cung_cap:o.v||null,loai_giao_dich:o.mvs||null,so_xe:o.tr||null,ten_tep:f.name,thu_muc:SRC_FOLDER,duong_dan:'https://drive.google.com/file/d/'+f.id+'/view',kich_thuoc:+f.size||0,ngay_tai_len:(f.createdTime||'').slice(0,10)||null,co_noi_dung:false,dong_bo_luc:new Date().toISOString()})}
+ ls.set('driveNames',[...new Set(names)]);
+ for(let i=0;i<add.length;i+=500){const {error}=await SB.from('chung_tu').upsert(add.slice(i,i+500),{onConflict:'drive_id'});if(error)throw new Error('Ghi Supabase lỗi: '+error.message);onMsg&&onMsg(`Đang bổ sung ${Math.min(i+500,add.length)}/${add.length} chứng từ…`)}
+ if(add.length){await load(false)}
+ pushLog('Bổ sung chứng từ hợp lệ','Từ danh sách chưa scan',add.length);
+ return {added:add.length,none,todo:todo.length}}
 function vStats(){
  $('#ttl').textContent='Thống kê nhập liệu';
  if(!ME.admin){$('#view').innerHTML='<div class="notice">Mục này chỉ dành cho quản trị viên.</div>';return}
- if(!STK){$('#view').innerHTML=`<div class="card"><h3 style="margin-top:0">Thống kê nhập liệu</h3><p>Đọc dữ liệu chứng từ SAP từ sheet <b>${STK_SHEET}</b>, đối chiếu với danh mục PDF đã scan.</p><div class="row"><button class="btn" id="stLoad">Tải dữ liệu thống kê</button></div><div id="stMsg" class="sm"></div></div>`;
-  $('#stLoad').onclick=async()=>{$('#stLoad').disabled=true;$('#stMsg').textContent='Đang đọc Google Sheet…';try{await loadStats();vStats()}catch(e){$('#stMsg').innerHTML='<div class="notice">'+esc(e.message)+'</div>';$('#stLoad').disabled=false}};return}
+ if(!STK){$('#view').innerHTML=`<div class="card"><h3 style="margin-top:0">Thống kê nhập liệu</h3><p>Đọc dữ liệu chứng từ SAP đã lưu trên máy chủ Supabase, đối chiếu với danh mục PDF đã scan.</p><div class="row"><button class="btn" id="stLoad">Tải dữ liệu thống kê</button><button class="btn ghost" id="stSync">Đồng bộ SAP từ Google Sheet lên máy chủ</button></div><div id="stMsg" class="sm"></div></div>`;
+  const doLoad=async()=>{$('#stLoad').disabled=true;$('#stMsg').textContent='Đang tải…';try{await loadStats();vStats()}catch(e){$('#stMsg').innerHTML=e.message==='NOSAP'?'<div class="notice">Máy chủ chưa có dữ liệu SAP. Bấm <b>Đồng bộ SAP từ Google Sheet lên máy chủ</b> (làm một lần, các lần sau chỉ cập nhật).</div>':'<div class="notice">'+esc(e.message)+'</div>';$('#stLoad').disabled=false}};
+  $('#stLoad').onclick=doLoad;
+  $('#stSync').onclick=async()=>{$('#stSync').disabled=true;try{const n=await syncSap(m=>{$('#stMsg').textContent=m});$('#stMsg').textContent='Đã đồng bộ '+fmt(n)+' dòng SAP.';await doLoad()}catch(e){$('#stMsg').innerHTML='<div class="notice">'+esc(e.message)+'</div>'}$('#stSync').disabled=false};
+  doLoad();return}
  const A=STK.list,users=[...new Set(A.map(o=>o.u).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'vi'));
  const F=ls.get('stF',{tu:'',den:'',l:'',sc:'',u:'',q:''});
  $('#view').innerHTML=`<div class="card"><div class="form" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));align-items:end">
@@ -838,7 +885,7 @@ function vStats(){
   <label>Trạng thái scan<select id="stSc"><option value="">Tất cả</option><option value="1" ${F.sc==='1'?'selected':''}>Đã scan</option><option value="0" ${F.sc==='0'?'selected':''}>Chưa scan</option><option value="h" ${F.sc==='h'?'selected':''}>Huỷ / Xử lý hệ thống (cột X)</option></select></label>
   <label>Người nhập<select id="stU"><option value="">Tất cả</option>${users.map(x=>`<option ${F.u===x?'selected':''}>${esc(x)}</option>`).join('')}</select></label>
   <label>Tìm số CT / dự án / NCC<input id="stQ" value="${esc(F.q)}" placeholder="VD: 4900055569"></label></div>
-  <div class="row"><button class="btn ghost" id="stClr">✕ Xoá lọc</button><button class="btn ghost" id="stXls">Xuất Excel báo cáo</button><button class="btn ghost" id="stRe">Tải lại từ Google Sheet</button><span class="sm">Nguồn: ${fmt(STK.rows)} dòng SAP · ${fmt(A.length)} chứng từ · đọc lúc ${STK.at.toLocaleTimeString('vi-VN')}</span></div></div>
+  <div class="row"><button class="btn ghost" id="stClr">✕ Xoá lọc</button><button class="btn ghost" id="stXls">Xuất Excel báo cáo</button><button class="btn ghost" id="stRe">Tải lại từ máy chủ</button><button class="btn ghost" id="stSy">Đồng bộ SAP từ Google Sheet</button><span class="sm" id="stSyM">Nguồn: máy chủ Supabase · ${fmt(STK.rows)} dòng SAP · ${fmt(A.length)} chứng từ · đọc lúc ${STK.at.toLocaleTimeString('vi-VN')}</span></div></div>
   <div id="stOut" style="margin-top:14px"></div>`;
  const get=()=>({tu:$('#stTu').value,den:$('#stDen').value,l:$('#stL').value,sc:$('#stSc').value,u:$('#stU').value,q:$('#stQ').value.trim()});
  const pick=f=>{const q=K(f.q);return A.filter(o=>(!f.tu||(o.d&&o.d>=f.tu))&&(!f.den||(o.d&&o.d<=f.den))&&(!f.l||o.l===f.l)&&(!f.sc||(f.sc==='h'?o.huy:(!o.huy&&(f.sc==='1')===o.sc)))&&(!f.u||o.u===f.u)&&(!q||K(o.so+' '+o.pm+' '+o.pn+' '+o.v).includes(q)))};
@@ -852,16 +899,18 @@ function vStats(){
   const mrow=a=>`<td class="n">${fmt(a.n)}</td><td class="n">${fmt(a.x)}</td><td class="n">${fmt(a.c)}</td><td class="n"><b>${fmt(a.t)}</b></td><td class="n">${fmt(a.h)}</td><td class="n">${fmt(a.s)}</td><td class="n">${fmt(a.t-a.h-a.s)}</td><td class="n">${pct(a.s,a.t-a.h)}</td>`;
   $('#stOut').innerHTML=`<div class="kpis"><div class="kpi"><b>${fmt(t)}</b><span>chứng từ</span></div><div class="kpi"><b>${fmt(cnt('Nhập'))}</b><span>phiếu nhập</span></div><div class="kpi"><b>${fmt(cnt('Xuất'))}</b><span>phiếu xuất</span></div><div class="kpi"><b>${fmt(cnt('Chuyển kho'))}</b><span>chuyển kho</span></div><div class="kpi"><b>${fmt(v)}</b><span>hợp lệ</span></div><div class="kpi"><b>${fmt(h)}</b><span>huỷ / xử lý hệ thống</span></div><div class="kpi"><b>${fmt(s)}</b><span>đã scan (${pct(s,v)} hợp lệ)</span></div><div class="kpi"><b>${fmt(v-s)}</b><span>chưa scan (hợp lệ)</span></div></div>
   <p class="sm" style="margin:4px 0 10px">Đã scan / chưa scan chỉ tính chứng từ hợp lệ. Chứng từ có dữ liệu ở cột X (Reversal) được tính là Huỷ / Xử lý hệ thống và không đưa vào số chưa scan.</p>
-  <div class="grid2"><div class="card"><h3 style="margin-top:0">Báo cáo theo tháng</h3>${tb(['Tháng','Nhập','Xuất','Chuyển','Tổng','Huỷ/XLHT','Đã scan','Chưa scan','% scan'],months.map(a=>`<tr><td>${a.k==='(trống)'?a.k:a.k.slice(5)+'/'+a.k.slice(0,4)}</td>${mrow(a)}</tr>`))}</div>
-  <div class="card"><h3 style="margin-top:0">Theo người nhập liệu</h3>${tb(['Người nhập','Nhập','Xuất','Chuyển','Tổng','Huỷ/XLHT','Đã scan','Chưa scan','% scan'],byU.map(a=>`<tr><td>${esc(a.k)}</td>${mrow(a)}</tr>`))}</div></div>
-  <h3>Danh sách chứng từ (${fmt(t)})</h3>${tb(['Số chứng từ','Ngày',`Loại<br><select id="hfL" class="hf" title="Lọc loại"><option value="">Tất cả</option>${['Nhập','Xuất','Chuyển kho','Khác'].map(x=>`<option ${f.l===x?'selected':''}>${x}</option>`).join('')}</select>`,'Mvt',`Người nhập<br><select id="hfU" class="hf" title="Lọc người nhập"><option value="">Tất cả</option>${users.map(x=>`<option ${f.u===x?'selected':''}>${esc(x)}</option>`).join('')}</select>`,'Dự án','Nhà cung cấp','Số dòng',`Scan<br><select id="hfSc" class="hf" title="Lọc trạng thái scan"><option value="">Tất cả</option><option value="1" ${f.sc==='1'?'selected':''}>Đã scan</option><option value="0" ${f.sc==='0'?'selected':''}>Chưa scan</option><option value="h" ${f.sc==='h'?'selected':''}>Huỷ / XLHT</option></select>`],R.slice(0,shown).map(o=>`<tr><td><b>${esc(o.so)}</b></td><td style="white-space:nowrap">${o.d?fd(o.d):''}</td><td><span class="tag">${o.l}</span></td><td class="sm">${esc(o.mvs)}</td><td class="sm">${esc(o.u)}</td><td class="sm">${esc((o.pm?o.pm+' ':'')+o.pn)}</td><td class="sm">${esc(o.v)}</td><td class="n">${o.n}</td><td>${o.huy?`<span class="tag" title="Cột X: ${esc(o.hx)}">Huỷ / XLHT</span>`:o.sc?'<span class="tag g">Đã scan</span>':'<span class="tag w">Chưa scan</span>'}</td></tr>`))}
+  <div class="grid2"><div class="card"><h3 style="margin-top:0">Báo cáo theo tháng</h3><ul class="stl">${months.map(a=>`<li><b>${a.k==='(trống)'?a.k:a.k.slice(5)+'/'+a.k.slice(0,4)}</b>: Nhập ${fmt(a.n)} · Xuất ${fmt(a.x)}${a.c?' · Chuyển '+fmt(a.c):''} · Tổng ${fmt(a.t)} · Huỷ/XLHT ${fmt(a.h)} · Đã scan ${fmt(a.s)} · Chưa scan ${fmt(a.t-a.h-a.s)} (${pct(a.s,a.t-a.h)} đã scan)</li>`).join('')}</ul></div>
+  <div class="card"><h3 style="margin-top:0">Theo người nhập / người xuất</h3><ul class="stl">${byU.map(a=>`<li><b>${esc(a.k)}</b>: Nhập ${fmt(a.n)} · Xuất ${fmt(a.x)}${a.c?' · Chuyển '+fmt(a.c):''} · Tổng ${fmt(a.t)} · Đã scan ${fmt(a.s)} · Chưa scan ${fmt(a.t-a.h-a.s)} (${pct(a.s,a.t-a.h)} đã scan)</li>`).join('')}</ul></div></div>
+  <div class="row" style="align-items:center"><h3 style="margin:0">Danh sách chứng từ (${fmt(t)})</h3><button class="btn" id="stAdd" title="Quét thư mục Drive, đưa các chứng từ hợp lệ chưa scan có tệp thật vào danh mục">Bổ sung chứng từ hợp lệ (chưa scan: ${fmt(v-s)})</button><span class="sm" id="stAddM"></span></div>${tb(['Số chứng từ','Ngày',`Loại<br><select id="hfL" class="hf" title="Lọc loại"><option value="">Tất cả</option>${['Nhập','Xuất','Chuyển kho','Khác'].map(x=>`<option ${f.l===x?'selected':''}>${x}</option>`).join('')}</select>`,'Mvt',`Người nhập<br><select id="hfU" class="hf" title="Lọc người nhập"><option value="">Tất cả</option>${users.map(x=>`<option ${f.u===x?'selected':''}>${esc(x)}</option>`).join('')}</select>`,'Dự án','Nhà cung cấp','Số dòng',`Scan<br><select id="hfSc" class="hf" title="Lọc trạng thái scan"><option value="">Tất cả</option><option value="1" ${f.sc==='1'?'selected':''}>Đã scan</option><option value="0" ${f.sc==='0'?'selected':''}>Chưa scan</option><option value="h" ${f.sc==='h'?'selected':''}>Huỷ / XLHT</option></select>`],R.slice(0,shown).map(o=>`<tr><td><b>${esc(o.so)}</b></td><td style="white-space:nowrap">${o.d?fd(o.d):''}</td><td><span class="tag">${o.l}</span></td><td class="sm">${esc(o.mvs)}</td><td class="sm">${esc(o.u)}</td><td class="sm">${esc((o.pm?o.pm+' ':'')+o.pn)}</td><td class="sm">${esc(o.v)}</td><td class="n">${o.n}</td><td>${o.huy?`<span class="tag" title="Cột X: ${esc(o.hx)}">Huỷ / XLHT</span>`:o.sc?'<span class="tag g">Đã scan</span>':'<span class="tag w">Chưa scan</span>'}</td></tr>`))}
   ${t>shown?`<div class="row" style="justify-content:center"><button class="btn ghost" id="stMore">Hiện thêm (${fmt(shown)}/${fmt(t)})</button></div>`:''}`;
+  const ab=$('#stAdd');if(ab)ab.onclick=async()=>{ab.disabled=true;try{const r=await addMissing(pick(get()),m=>{$('#stAddM').textContent=m});await loadStats();vStats();toast(`Đã bổ sung ${fmt(r.added)} chứng từ vào danh mục. Còn ${fmt(r.none)} chứng từ hợp lệ chưa có tệp scan trên Drive.`,9000)}catch(e){$('#stAddM').textContent=e.message;ab.disabled=false}};
   const mb=$('#stMore');if(mb)mb.onclick=()=>{shown+=500;draw()};
   [['hfL','stL'],['hfU','stU'],['hfSc','stSc']].forEach(([a,b])=>{const e=$('#'+a);if(e)e.onchange=()=>{$('#'+b).value=e.value;shown=200;draw()}})};
  ['stTu','stDen','stL','stSc','stU'].forEach(id=>$('#'+id).onchange=()=>{shown=200;draw()});
  let qt;$('#stQ').oninput=()=>{clearTimeout(qt);qt=setTimeout(()=>{shown=200;draw()},300)};
  $('#stClr').onclick=()=>{ls.set('stF',{tu:'',den:'',l:'',sc:'',u:'',q:''});vStats()};
- $('#stRe').onclick=async()=>{$('#stRe').disabled=true;$('#stRe').textContent='Đang tải…';try{await loadStats();vStats();toast('Đã tải lại dữ liệu từ Google Sheet')}catch(e){toast(e.message,9000);$('#stRe').disabled=false;$('#stRe').textContent='Tải lại từ Google Sheet'}};
+ $('#stRe').onclick=async()=>{$('#stRe').disabled=true;$('#stRe').textContent='Đang tải…';try{await loadStats();vStats();toast('Đã tải lại dữ liệu từ máy chủ')}catch(e){toast(e.message,9000);$('#stRe').disabled=false;$('#stRe').textContent='Tải lại từ máy chủ'}};
+ $('#stSy').onclick=async()=>{$('#stSy').disabled=true;try{const n=await syncSap(m=>{$('#stSyM').textContent=m});await loadStats();vStats();toast('Đã đồng bộ '+fmt(n)+' dòng SAP lên máy chủ')}catch(e){toast(e.message,9000);$('#stSy').disabled=false}};
  $('#stXls').onclick=async()=>{try{if(!window.XLSX)await lib('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js')}catch{toast('Không tải được thư viện Excel');return}
   const f=get(),R=pick(f),t=R.length,h=R.filter(o=>o.huy).length,s=R.filter(o=>!o.huy&&o.sc).length,cnt=l=>R.filter(o=>o.l===l).length;
   const head=['Nhập','Xuất','Chuyển kho','Tổng','Huỷ/XLHT','Đã scan','Chưa scan','% scan'],row=a=>[a.n,a.x,a.c,a.t,a.h,a.s,a.t-a.h-a.s,(a.t-a.h)?Math.round(a.s*100/(a.t-a.h))/100:0];
