@@ -1,0 +1,11 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Times New Roman", Times, "Liberation Serif", serif;
+  --color-brand: #6e0909;
+  --color-brand-dark: #3f0404;
+  --color-gold: #b8860b;
+}
+
+html, body, #root { height: 100%; }
+body { font-family: var(--font-sans); font-size: 16px; line-height: 1.55; color: #1a1a1a; background: #faf8f5; }
