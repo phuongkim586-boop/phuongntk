@@ -380,8 +380,11 @@ function parseQ(q){
  let s=' '+K(q).replace(/\s+/g,' ')+' ';const f={raw:q,words:[],labels:[]};
  const take=(re,fn)=>{s=s.replace(re,(...a)=>{fn(...a);return ' '})};
  take(/\b(px|nm|nk|nt|dc|di)\s?(\d{2})\s?(\d{2})\s?(\d{3,5})\b/g,(m,a,b,c,d)=>{f.so=(a.toUpperCase()+b+'/'+c+'-'+d.padStart(4,'0'));f.labels.push('Số phiếu '+f.so)});
- take(/\b(?:po\s?)?(41\d{8})\b/g,m=>{f.po=m.replace(/\D/g,'');f.labels.push('Số PO '+f.po)});
- take(/\b(?:(?:pr|yc|yeu cau)\s?)?(1[17]\d{8})\b/g,m=>{f.pr=m.replace(/\D/g,'');f.labels.push('Số yêu cầu '+f.pr)});
+ /* Lệnh xuất/nhập: DDC.LX125/09-0652, LD24/10-0810, PO25/09-5684 (đã bỏ dấu chấm, gạch khi chuẩn hoá) */
+ take(/\b(?:ddc\s)?([a-z]{2,3}\d{2,3})\s(\d{2})\s(\d{3,5})\b/g,(m,a,b,c)=>{f.ma=(a+'/'+b+'-'+c).toUpperCase();f.labels.push('Lệnh xuất/nhập '+f.ma)});
+ /* Số PO (31,41,42,43…), Số yêu cầu (11–17), Lệnh giao hàng (18,30). Số phiếu SAP 49/50 không rơi vào đây. */
+ take(/\b(?:po\s?)?(3[01]\d{8}|4[1-3]\d{8})\b/g,m=>{f.ma=m.replace(/\D/g,'');f.labels.push('Số PO '+f.ma)});
+ take(/\b(?:(?:pr|yc|yeu cau)\s?)?(1[1-8]\d{8})\b/g,m=>{f.ma=m.replace(/\D/g,'');f.labels.push('Số yêu cầu / lệnh giao '+f.ma)});
  take(/\b(4\d{9}|5\d{9})\b/g,m=>{f.so=m;f.labels.push('Số phiếu SAP '+m)});
  take(/\b(1\d{4})\s(\d{2,5})(?:\s([a-z]{2,6}))?\b/g,(m,a,b,c)=>{f.wbs=(a+'-'+b+(c?'-'+c:'')).toUpperCase();f.labels.push('Mã WBS '+f.wbs)});
  take(/\b(tctn|xknn|tcnn|xktn|ctnb)\s?(d\d|dksa|3dmt)\s?(\d{2})\s?(\d{2,3})?\b/g,(m,a,b,c,d)=>{f.pm=(a+'.'+b+'.'+c+(d?'.'+d:'')).toUpperCase().replace('.DKSA','.DKSA');f.labels.push('Mã công trình '+f.pm)});
@@ -400,7 +403,7 @@ function simW(q,name){const w=name.split(' ').filter(Boolean),n=q.split(' ').len
 function sim(a,b){const A=tri(a),B=tri(b);let n=0;for(const x of A)if(B.has(x))n++;return 2*n/(A.size+B.size)}
 function run(f){
  let R=D,how=[];
- if(f.po||f.pr){const S=f.sos||new Set();R=R.filter(r=>S.has(r.s));how.push('Số PO / Số yêu cầu (SAP: '+S.size+' chứng từ)')}
+ if(f.ma){const S=f.sos||new Set();R=R.filter(r=>S.has(r.s)||S.has(String(r.s).replace(/\s/g,'')));how.push((f.maKieu||'Mã liên quan')+' (máy chủ: '+fmt(S.size)+' chứng từ)')}
  if(f.so){R=R.filter(r=>r.s===f.so||K(r.s)===K(f.so))}
  if(f.tail){const t=f.tail.replace(/^0+/,'');R=R.filter(r=>r.s5.replace(/^0+/,'').endsWith(t)&&(f.tail.length<5||r.s5.replace(/^0+/,'')===t||r.s5.endsWith(f.tail)))}
  if(f.wbs){R=R.filter(r=>(r.w||r.m||'').toUpperCase().startsWith(f.wbs))}
@@ -428,7 +431,7 @@ function run(f){
    }
   }
  }
- if(!f.po&&!f.pr&&!f.so&&!f.tail&&!f.wbs&&!f.pm&&!f.day&&!f.month&&!f.year&&!f.types&&!f.words.length)R=[];
+ if(!f.ma&&!f.so&&!f.tail&&!f.wbs&&!f.pm&&!f.day&&!f.month&&!f.year&&!f.types&&!f.words.length)R=[];
  return {R,fuzzy,how};
 }
 function hl(text,f){let t=esc(text);const ws=[...f.words];if(f.tail)ws.push(f.tail);
@@ -491,12 +494,16 @@ addEventListener('keydown',e=>{if(e.key==='Escape')$('#dlg').classList.remove('o
 function vSearch(){
  $('#ttl').textContent='Tra cứu chứng từ kho';
  $('#view').innerHTML=`<div class="card"><p class="lbl"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>NHẬP THÔNG TIN CẦN TRA CỨU &amp; XEM TRỌN BỘ HỒ SƠ</p>
- <form class="sbox" id="sf"><label class="sfield"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--mut)"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="q" autocomplete="off" list="sugg" placeholder="Nhập Số phiếu (PX25/10-3836, 4900088403), Số PO (4100009106), Số yêu cầu (1100007204), 5 số cuối (03836), Mã WBS (10626-051), Tên dự án (Evapco, Hùng Vương), Nhà cung cấp, Ngày (24/10/2025)…"></label><button class="btn big" type="submit"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Tra cứu</button><button class="btn big ghost" type="button" id="qClr" title="Xoá ô tìm và kết quả (phím Esc)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M18 6 6 18M6 6l12 12"/></svg>Xoá lọc</button></form>
+ <form class="sbox" id="sf"><label class="sfield"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--mut)"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="q" autocomplete="off" list="sugg" placeholder="Nhập Số phiếu (PX25/10-3836, 4900088403), Số PO (4100009106), Số yêu cầu (1100007204), Lệnh xuất (LX125/09-0652), 5 số cuối (03836), Mã WBS (10626-051), Tên dự án (Evapco, Hùng Vương), Nhà cung cấp, Ngày (24/10/2025)…"></label><button class="btn big" type="submit"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Tra cứu</button><button class="btn big ghost" type="button" id="qClr" title="Xoá ô tìm và kết quả (phím Esc)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M18 6 6 18M6 6l12 12"/></svg>Xoá lọc</button></form>
  <datalist id="sugg">${projects.slice(0,120).map(p=>`<option value="${esc(p.p||p.m)}">`).join('')}${suppliers.slice(0,120).map(s=>`<option value="${esc(s.n)}">`).join('')}</datalist>
  <div class="hint"><b>Gợi ý tra cứu:</b> Tra cứu theo <b>Số phiếu chính</b> (ra đúng 1 bộ hồ sơ chi tiết) hoặc lọc theo <b>Ngày</b> (ra trọn 1 tệp ngày kèm bảng kê). Có thể gõ nhiều điều kiện cùng lúc, ví dụ: <i>phiếu xuất evapco 10/2025</i>. Hỗ trợ tiếng Việt không dấu và tìm gần đúng.</div></div>
  <div id="res"></div>`;
  const go=async q=>{q=q.trim();if(!q){$('#res').innerHTML='';return}const f=parseQ(q);
-  if(f.po||f.pr){const {data}=await SB.from('sap_dong').select('so_ct').eq(f.po?'so_po':'so_yc',f.po||f.pr).limit(5000);f.sos=new Set((data||[]).map(x=>x.so_ct))}
+  if(f.ma){const {data,error}=await SB.rpc('tim_theo_ma',{q:f.ma});
+   if(error)toast('Không tra được mã trên máy chủ: '+error.message,6000);
+   f.sos=new Set((data||[]).map(x=>x.so_phieu));
+   const KI={PO:'Số PO',YC:'Số yêu cầu',GIAO:'Lệnh giao hàng',LENH:'Lệnh xuất/nhập'};
+   f.maKieu=[...new Set((data||[]).map(x=>KI[x.kieu]||x.kieu))].join(' / ')||'Mã liên quan'}
   const {R,fuzzy,how}=run(f);log('Tra cứu',q,R.length);ls.set('lastQ',q);showRes(f,R,fuzzy,how)};
  $('#sf').onsubmit=e=>{e.preventDefault();go($('#q').value)};
  const clrBtn=()=>{};
