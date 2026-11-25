@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Đồng bộ Google Sheet "Trang tính6" (SAP) -> bảng public.sap_dong trên Supabase.
+"""Đồng bộ Google Sheet -> Supabase: tab "Trang tính6" (SAP) -> public.sap_dong,
+tab "INDEX_PDF" (Số phiếu -> tệp PDF) -> public.chi_muc_pdf.
 
 Chạy lại nhiều lần không tạo bản ghi trùng: upsert theo khoá nghiệp vụ `khoa`
 (cùng công thức với nút "Đồng bộ SAP" trên trang, nên hai cách chạy dùng chung dữ liệu).
@@ -34,9 +35,8 @@ def google_token(sa_path):
         "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer", "assertion": (head + b"." + body + b"." + sig).decode()}, timeout=60)
     r.raise_for_status(); return r.json()["access_token"]
 
-def read_sheet(sa_path):
-    tk = google_token(sa_path)
-    url = f"https://sheets.googleapis.com/v4/spreadsheets/{SHEET_ID}/values/{requests.utils.quote(chr(39)+SHEET_NAME+chr(39)+'!A2:AD')}"
+def read_range(tk, rng):
+    url = f"https://sheets.googleapis.com/v4/spreadsheets/{SHEET_ID}/values/{requests.utils.quote(rng)}"
     r = requests.get(url, params={"valueRenderOption": "FORMATTED_VALUE"}, headers={"Authorization": "Bearer " + tk}, timeout=300)
     if not r.ok: sys.exit(f"Lỗi đọc Google Sheet {r.status_code}: {r.text[:300]} (đã chia sẻ Sheet cho email service account chưa?)")
     return r.json().get("values", [])
@@ -79,28 +79,47 @@ def build(values):
         out.append(dict(khoa=f"{base}#{k}", so_ct=so, ngay=pdate(g(3)), nguoi_nhap=g(0), tao_boi=g(1), nhom_vt=g(4), ma_vt=g(5),
             ten_vt=g(6), batch=g(7), dvt=g(8), so_luong=num(g(9)), ma_da=g(10), ten_da=g(11), kho=g(12), mvt=g(13), mvt_text=g(14),
             dc=g(15), plant=g(16), ncc=g(17), truck=g(20), so_yc=g(21), reversal=g(23), delivery=g(24), so_po=g(25),
-            mo_ta_pr=g(26), so_tk=g(27), loai=classify(g(14), g(15).upper()), dong_bo_luc=now))
+            mo_ta_pr=g(26), so_tk=g(27), link_drive=g(30) or None,
+            loai=classify(g(14), g(15).upper()), dong_bo_luc=now))
     return out
 
-def upsert(rows, url, key):
+def build_index(values):
+    seen, out, now = set(), [], datetime.now(timezone.utc).isoformat()
+    for c in values:
+        g = lambda i: str(c[i]).strip() if i < len(c) and c[i] is not None else ""
+        so = re.sub(r"\s", "", g(0))
+        if not so or so in seen: continue
+        seen.add(so)
+        out.append(dict(so_phieu=so, ten_tep=g(1) or None, thu_muc=g(2) or None, link=g(3) or None,
+                        file_id=g(4) or None, dong_bo_luc=now))
+    return out
+
+def upsert(rows, url, key, table="sap_dong", conflict="khoa"):
     h = {"apikey": key, "Authorization": "Bearer " + key, "Content-Type": "application/json",
          "Prefer": "resolution=merge-duplicates,return=minimal"}
     for i in range(0, len(rows), BATCH):
         for t in range(3):
-            r = requests.post(f"{url}/rest/v1/sap_dong?on_conflict=khoa", headers=h, data=json.dumps(rows[i:i+BATCH]), timeout=120)
+            r = requests.post(f"{url}/rest/v1/{table}?on_conflict={conflict}", headers=h, data=json.dumps(rows[i:i+BATCH]), timeout=120)
             if r.ok: break
             time.sleep(2 ** t)
         else: sys.exit(f"Ghi Supabase lỗi {r.status_code}: {r.text[:300]}")
-        print(f"  đã ghi {min(i+BATCH, len(rows))}/{len(rows)} dòng", flush=True)
+        print(f"  {table}: đã ghi {min(i+BATCH, len(rows))}/{len(rows)} dòng", flush=True)
 
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument("--dry-run", action="store_true"); ap.add_argument("--csv")
     a = ap.parse_args()
-    values = read_csv(a.csv) if a.csv else read_sheet(os.environ["GOOGLE_SA_JSON"])
+    tk = None if a.csv else google_token(os.environ["GOOGLE_SA_JSON"])
+    values = read_csv(a.csv) if a.csv else read_range(tk, f"'{SHEET_NAME}'!A2:AE")
     rows = build(values)
-    print(f"Đọc {len(values)} dòng, hợp lệ {len(rows)} dòng ({len({r['so_ct'] for r in rows})} chứng từ).")
+    print(f"Trang tính6: đọc {len(values)} dòng, hợp lệ {len(rows)} dòng ({len({r['so_ct'] for r in rows})} chứng từ).")
+    idx = []
+    if tk:
+        idx = build_index(read_range(tk, "'INDEX_PDF'!A2:E"))
+        print(f"INDEX_PDF: {len(idx)} chứng từ có tệp PDF.")
     if a.dry_run: return
-    upsert(rows, os.environ["SUPABASE_URL"].rstrip("/"), os.environ["SUPABASE_SERVICE_KEY"])
+    url, key = os.environ["SUPABASE_URL"].rstrip("/"), os.environ["SUPABASE_SERVICE_KEY"]
+    upsert(rows, url, key, "sap_dong", "khoa")
+    if idx: upsert(idx, url, key, "chi_muc_pdf", "so_phieu")
     print("Xong. Chạy lại bao nhiêu lần cũng không tạo dòng trùng.")
 
 if __name__ == "__main__": main()

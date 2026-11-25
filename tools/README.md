@@ -8,4 +8,4 @@ export GOOGLE_SA_JSON=sa.json        # service account chỉ quyền đọc, đ�
 python3 sap_sync.py --dry-run        # thử, không ghi
 python3 sap_sync.py                  # đồng bộ (chạy lại nhiều lần không trùng)
 ```
-Không có service account: tải Sheet "Trang tính6" thành CSV rồi chạy `--csv tep.csv`.
+Không có service account: tải tab "Trang tính6" thành CSV rồi chạy `--csv tep.csv` (khi đó bỏ qua INDEX_PDF).
