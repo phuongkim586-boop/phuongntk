@@ -709,11 +709,18 @@ function vExport(){
   $('#dlgB').innerHTML=`<div class="notice">Định dạng: <b>${esc(fmL)}</b>. Bỏ tick những chứng từ không muốn kết xuất.</div>
   <div class="row" style="margin:0 0 8px"><label class="sm" style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" id="pvAll" checked> Chọn tất cả</label><span class="sm" id="pvN"></span></div>
   <div style="max-height:55vh;overflow:auto;border:1px solid var(--line);border-radius:8px"><table><thead><tr><th></th><th>STT</th><th>Số phiếu</th><th>Ngày</th><th>Loại</th><th class="hide-s">Dự án / công trình</th><th class="hide-s">NCC / bên nhận</th><th class="hide-s">Tệp gốc</th></tr></thead><tbody>${R0.map((r,i)=>`<tr><td><input type="checkbox" class="pvC" data-i="${i}" checked></td><td>${i+1}</td><td><b>${esc(r.s)}</b></td><td style="white-space:nowrap">${fd(r.d)}</td><td><span class="tag">${esc(r.l)}</span></td><td class="hide-s">${esc((r.m?r.m+' ':'')+(r.p||''))}</td><td class="hide-s">${esc(r.n||r.b||'')}</td><td class="hide-s sm">${esc(r.f||'')}</td></tr>`).join('')}</tbody></table></div>
-  <div class="row"><button class="btn" id="pvGo">Xác nhận kết xuất</button><button class="btn ghost" id="pvPdf">Xem trước trọn bộ (PDF)</button><button class="btn ghost" id="pvNo">Quay lại</button></div>`;
+  <div class="row"><button class="btn" id="pvGo">Xác nhận kết xuất</button><button class="btn ghost" id="pvPdf">Xem trước trọn bộ (PDF)</button><button class="btn ghost" id="pvXl">Xem trước bảng kê Excel</button><button class="btn ghost" id="pvNo">Quay lại</button></div>`;
   const cnt=()=>{const n=$('#dlgB').querySelectorAll('.pvC:checked').length;$('#pvN').textContent=`Đã chọn ${fmt(n)}/${fmt(R0.length)} chứng từ`;$('#pvGo').disabled=!n;$('#pvAll').checked=n===R0.length};
   $('#dlgB').querySelectorAll('.pvC').forEach(c=>c.onchange=cnt);
   $('#pvAll').onchange=e=>{$('#dlgB').querySelectorAll('.pvC').forEach(c=>c.checked=e.target.checked);cnt()};
   $('#pvNo').onclick=()=>$('#dlg').classList.remove('on');
+  $('#pvXl').onclick=()=>{const R=[...$('#dlgB').querySelectorAll('.pvC:checked')].map(c=>R0[+c.dataset.i]);if(!R.length)return;
+   const head=['STT','Số phiếu','Loại chứng từ','Ngày','Mã công trình/WBS','Tên dự án','Nhà cung cấp','Bên nhận','Diễn giải','Lệnh/PO','Tổng SL','Tệp gốc','Thư mục','Link tệp gốc'];
+   $('#dlgT').textContent='Xem trước bảng kê Excel: '+fmt(R.length)+' dòng';
+   $('#dlgB').innerHTML=`<div class="notice">Đây là đúng nội dung sẽ có trong tệp Excel (14 cột). Chưa tải tệp.</div>
+   <div style="max-height:58vh;overflow:auto;border:1px solid var(--line);border-radius:8px"><table><thead><tr>${head.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${R.map((r,i)=>`<tr><td>${i+1}</td><td>${esc(r.s)}</td><td>${esc(TY[r.l]||'')}</td><td>${esc(fd(r.d)||'')}</td><td>${esc(r.m||r.w||'')}</td><td>${esc(r.p||'')}</td><td>${esc(r.n||'')}</td><td>${esc(r.b||'')}</td><td>${esc(r.g||'')}</td><td>${esc(r.o||'')}</td><td>${esc(r.q||'')}</td><td>${esc(r.f||'')}</td><td>${esc(r.fo||'')}</td><td class="sm">${esc(url(r))}</td></tr>`).join('')}</tbody></table></div>
+   <div class="row"><button class="btn ghost" id="pvXlBack">Quay lại danh sách</button></div>`;
+   $('#pvXlBack').onclick=()=>$('#xGo').click()};
   $('#pvPdf').onclick=()=>{const R=[...$('#dlgB').querySelectorAll('.pvC:checked')].map(c=>R0[+c.dataset.i]);if(!R.length)return;
    PDFPREV=async(blob,ok,bad)=>{await pdfViewer(blob,{title:`Xem trước trọn bộ: ${fmt(ok)} phiếu`,name:'Bo_Chung_Tu_xem_truoc',
      top:bad.length?`<div class="notice">${bad.length} phiếu không lấy được PDF: ${esc(bad.slice(0,8).join(', '))}${bad.length>8?'…':''}</div>`:'',
