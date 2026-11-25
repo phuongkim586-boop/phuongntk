@@ -770,11 +770,9 @@ async function push(rows,label){
 }
 async function vSupabase(){
  $('#ttl').textContent='Dữ liệu & tài khoản';const {data:{user}}=await SB.auth.getUser();
- const {data:tt}=await SB.from('v_tinh_trang').select('*');
  $('#view').innerHTML=`<div class="grid2"><div class="card"><h3 style="margin-top:0">Tài khoản</h3><p>Đang đăng nhập: <b>${esc(user&&user.email)}</b></p><p class="sm">Vai trò: ${ME.sa?'Super Admin (toàn quyền hệ thống)':ME.admin?'Quản trị viên':'Nhân viên đã được duyệt'}</p><div class="row"><button class="btn ghost" id="reload">Cập nhật dữ liệu mới</button><button class="btn" id="logout">Đăng xuất</button></div></div>
  <div class="card"><h3 style="margin-top:0">Nguồn dữ liệu</h3><p>Dữ liệu lấy từ Supabase (dự án kho-an-ha-chung-tu), đọc từ thư mục Bo_Phieu_Da_Tach_2026 trên Google Drive${DUPS.size?` (đã tự ẩn ${fmt(DUPS.size)} tệp trùng số phiếu, giữ bản đầy đủ nhất)`:''}. Việc quét Drive, chuyển dữ liệu và xuất PDF gộp được thực hiện trong bản nội bộ trên Claude.</p></div></div>
- ${ME.admin?'<h3 style="margin-top:22px">Duyệt tài khoản</h3><div id="tkBox"><div class="empty">Đang tải danh sách tài khoản…</div></div>':''}<h3>Tình trạng theo loại chứng từ</h3><div id="tt"></div>`;
- $('#tt').innerHTML=listTbl(['Loại','Số chứng từ','Thiếu ngày','Thiếu dự án','Thiếu NCC','Chưa OCR'],(tt||[]).map(x=>[TY[x.loai]||x.loai,+x.so_chung_tu,+x.thieu_ngay,+x.thieu_du_an,+x.thieu_ncc,+x.chua_ocr]));
+ ${ME.admin?'<h3 style="margin-top:22px">Duyệt tài khoản</h3><div id="tkBox"><div class="empty">Đang tải danh sách tài khoản…</div></div>':''}`;
  $('#logout').onclick=async()=>{await SB.auth.signOut();try{indexedDB.deleteDatabase('ddk_kho')}catch{}location.reload()};
  $('#reload').onclick=async()=>{const b=$('#reload');b.disabled=true;b.textContent='Đang cập nhật…';try{await load(false);toast('Đã cập nhật dữ liệu mới nhất')}catch(e){toast('Không cập nhật được: '+e.message,6000)}b.disabled=false;b.textContent='Cập nhật dữ liệu mới'};
  if(ME.admin)renderAccounts();
