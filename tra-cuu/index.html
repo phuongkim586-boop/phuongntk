@@ -307,8 +307,8 @@ async function loadMeta(){
  const [st,dm]=await Promise.all([rpc('thong_ke_tong_quan'),rpc('goi_y_danh_muc').catch(()=>null)]);
  STATS=st||{};if(dm){projects=dm.du_an||[];suppliers=dm.ncc||[]}
  $('#bdN').textContent=fmt(STATS.tong||0);
- const yrs=(STATS.nam||[]).map(String).sort().filter(y=>+y>=2026);
- $('#sidefoot').innerHTML=`<b>${fmt(STATS.tong||0)}</b> chứng từ · <b>${fmt(STATS.du_an||0)}</b> dự án · <b>${fmt(STATS.ncc||0)}</b> nhà cung cấp<br>Phiếu xuất <b>${fmt(STATS.xuat||0)}</b> · Phiếu nhập <b>${fmt(STATS.nhap||0)}</b><br>Năm: ${yrs.join(', ')||'2026'}<br>Nguồn: thư mục Bo_Phieu_Da_Tach_2026 trên Google Drive (chỉ đọc)`;
+ const yrs=(STATS.nam||[]).map(String).sort().filter(y=>+y>=2025);
+ $('#sidefoot').innerHTML=`<b>${fmt(STATS.tong||0)}</b> chứng từ · <b>${fmt(STATS.du_an||0)}</b> dự án · <b>${fmt(STATS.ncc||0)}</b> nhà cung cấp<br>Phiếu xuất <b>${fmt(STATS.xuat||0)}</b> · Phiếu nhập <b>${fmt(STATS.nhap||0)}</b><br>Năm: ${yrs.join(', ')||'2026'}<br>Nguồn: thư mục Bo_Phieu_Da_Tach_2026 + Bo_Phieu_Da_Tach_2025 trên Google Drive (chỉ đọc)`;
  if(STATS.cap_nhat){try{ls.set('lastSync',new Date(STATS.cap_nhat).toLocaleString('vi-VN',{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit',year:'numeric'}))}catch{}}
  $('#meta').textContent='Cập nhật danh mục: '+ls.get('lastSync','—');
  READY=true}
@@ -436,13 +436,14 @@ async function multiP(s){
  const isSo=t=>/^(4[89]|50)\d{8}$/.test(t)||/^(PX|NM|NK|NT|DC|DI)\d{2}[\/_]?\d{2}-?\d{3,5}$/i.test(t);
  const isMa=t=>/^(3[01]|4[1-3]|1[1-8])\d{8}$/.test(t)||/^(DDC\.?)?[A-Z]{2,3}\d{2,3}\/\d{2}-\d{3,5}$/i.test(t);
  const codes=toks.filter(t=>isSo(t)||isMa(t));
- if(codes.length<2||codes.length!==toks.length)return null;
+ if(codes.length<2)return null;const rest=toks.filter(t=>!(isSo(t)||isMa(t))).map(t=>K(t)).filter(Boolean);
  const sos=new Set(),labels=[],asked=[];
  for(const t of codes){
   if(isSo(t)){const m=/^(PX|NM|NK|NT|DC|DI)(\d{2})[\/_]?(\d{2})-?(\d{3,5})$/i.exec(t);const so=m?m[1].toUpperCase()+m[2]+'/'+m[3]+'-'+m[4].padStart(4,'0'):t;sos.add(so);asked.push(so)}
   else{const {data}=await SB.rpc('tim_theo_ma',{q:t.toUpperCase()});const L=(data||[]).map(x=>x.so_phieu).filter(Boolean);L.forEach(x=>sos.add(x));labels.push(`Mã ${t}: ${L.length?fmt(L.length)+' phiếu':'không có phiếu'}`)}}
  const nSo=asked.length;if(nSo)labels.unshift(`${fmt(nSo)} số phiếu`);
- return {p:{sos:[...sos]},f:{raw:s,words:[],labels,multi:true,asked}}}
+ const p={sos:[...sos]};if(rest.length){p.words=rest;labels.push('Từ khoá: '+rest.join(' '))}
+ return {p,f:{raw:s,words:rest,labels,multi:true,asked}}}
 /* Báo những số phiếu đã nhập nhưng chưa có chứng từ scan */
 async function missingNote(f,p,host){if(!f.asked||!f.asked.length||f.asked.length>500)return;
  try{const R=await allP(p,2000);const have=new Set(R.map(r=>normSo(r.s)));const miss=f.asked.filter(x=>!have.has(normSo(x)));
@@ -915,7 +916,7 @@ async function push(rows,label){
 async function vSupabase(){
  $('#ttl').textContent='Dữ liệu & tài khoản';const {data:{user}}=await SB.auth.getUser();
  $('#view').innerHTML=`<div class="grid2"><div class="card"><h3 style="margin-top:0">Tài khoản</h3><p>Đang đăng nhập: <b>${esc(user&&user.email)}</b></p><p class="sm">Vai trò: ${ME.sa?'Super Admin (toàn quyền hệ thống)':ME.admin?'Quản trị viên':'Nhân viên đã được duyệt'}</p><div class="row"><button class="btn ghost" id="reload">Cập nhật dữ liệu mới</button><button class="btn" id="logout">Đăng xuất</button></div></div>
- <div class="card"><h3 style="margin-top:0">Nguồn dữ liệu</h3><p>Dữ liệu lấy từ Supabase (dự án kho-an-ha-chung-tu), đọc từ thư mục Bo_Phieu_Da_Tach_2026 trên Google Drive${STATS&&STATS.trung?` (đã tự ẩn ${fmt(STATS.trung)} tệp trùng số phiếu, giữ bản đầy đủ nhất)`:''}. Trình duyệt không tải cả bảng: máy chủ tìm và trả về 50 phiếu mỗi trang. Việc quét Drive, chuyển dữ liệu và xuất PDF gộp được thực hiện trong bản nội bộ trên Claude.</p></div></div>
+ <div class="card"><h3 style="margin-top:0">Nguồn dữ liệu</h3><p>Dữ liệu lấy từ Supabase (dự án kho-an-ha-chung-tu), đọc từ thư mục Bo_Phieu_Da_Tach_2026 và Bo_Phieu_Da_Tach_2025 trên Google Drive${STATS&&STATS.trung?` (đã tự ẩn ${fmt(STATS.trung)} tệp trùng số phiếu, giữ bản đầy đủ nhất)`:''}. Trình duyệt không tải cả bảng: máy chủ tìm và trả về 50 phiếu mỗi trang. Việc quét Drive, chuyển dữ liệu và xuất PDF gộp được thực hiện trong bản nội bộ trên Claude.</p></div></div>
  ${ME.admin?'<h3 style="margin-top:22px">Duyệt tài khoản</h3><div id="tkBox"><div class="empty">Đang tải danh sách tài khoản…</div></div>':''}`;
  $('#logout').onclick=async()=>{await SB.auth.signOut();try{indexedDB.deleteDatabase('ddk_kho')}catch{}location.reload()};
  $('#reload').onclick=async()=>{const b=$('#reload');b.disabled=true;b.textContent='Đang cập nhật…';try{const r=await refreshIndex();await loadMeta();toast(r&&r.nen?'Máy chủ đang làm mới chỉ mục nền (10–30 giây). Số liệu hiện có đã được tải lại.':'Đã cập nhật dữ liệu mới nhất',6000)}catch(e){toast('Không cập nhật được: '+e.message,6000)}b.disabled=false;b.textContent='Cập nhật dữ liệu mới'};
