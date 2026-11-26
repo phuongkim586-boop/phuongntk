@@ -429,6 +429,26 @@ async function allP(p,cap){cap=cap||10000;const s=await sumP(p),n=Math.min(s.ton
   if(r.error)throw new Error(r.error.message);out[i]=r.data.map(fromRow);done++;
   if(pages>1){const t=$('#toast');clearTimeout(t._h);t.textContent=`Đang lấy danh sách… ${fmt(Math.min(n,done*B))}/${fmt(n)}`;t.style.display='block'}}};
  await Promise.all(Array.from({length:Math.min(4,pages)},w));if(pages>1)$('#toast').style.display='none';return out.flat()}
+/* Nhiều mã cùng lúc: "4900156622 4900156741, PO 4100009602…" → gom thành danh sách số phiếu (OR) */
+const normSo=x=>String(x||'').replace(/[\s_\/.\-]/g,'').toUpperCase();
+async function multiP(s){
+ const toks=String(s||'').split(/[\s,;|]+/).map(t=>t.trim()).filter(Boolean);
+ const isSo=t=>/^(4[89]|50)\d{8}$/.test(t)||/^(PX|NM|NK|NT|DC|DI)\d{2}[\/_]?\d{2}-?\d{3,5}$/i.test(t);
+ const isMa=t=>/^(3[01]|4[1-3]|1[1-8])\d{8}$/.test(t)||/^(DDC\.?)?[A-Z]{2,3}\d{2,3}\/\d{2}-\d{3,5}$/i.test(t);
+ const codes=toks.filter(t=>isSo(t)||isMa(t));
+ if(codes.length<2||codes.length!==toks.length)return null;
+ const sos=new Set(),labels=[],asked=[];
+ for(const t of codes){
+  if(isSo(t)){const m=/^(PX|NM|NK|NT|DC|DI)(\d{2})[\/_]?(\d{2})-?(\d{3,5})$/i.exec(t);const so=m?m[1].toUpperCase()+m[2]+'/'+m[3]+'-'+m[4].padStart(4,'0'):t;sos.add(so);asked.push(so)}
+  else{const {data}=await SB.rpc('tim_theo_ma',{q:t.toUpperCase()});const L=(data||[]).map(x=>x.so_phieu).filter(Boolean);L.forEach(x=>sos.add(x));labels.push(`Mã ${t}: ${L.length?fmt(L.length)+' phiếu':'không có phiếu'}`)}}
+ const nSo=asked.length;if(nSo)labels.unshift(`${fmt(nSo)} số phiếu`);
+ return {p:{sos:[...sos]},f:{raw:s,words:[],labels,multi:true,asked}}}
+/* Báo những số phiếu đã nhập nhưng chưa có chứng từ scan */
+async function missingNote(f,p,host){if(!f.asked||!f.asked.length||f.asked.length>500)return;
+ try{const R=await allP(p,2000);const have=new Set(R.map(r=>normSo(r.s)));const miss=f.asked.filter(x=>!have.has(normSo(x)));
+  const el=document.querySelector(host);if(!el)return;
+  el.innerHTML=miss.length?`<div class="notice"><b>${fmt(miss.length)}/${fmt(f.asked.length)} số phiếu chưa có chứng từ scan trong hệ thống:</b> ${miss.map(esc).join(', ')} <button class="mini cp" id="cpMiss">Copy danh sách</button></div>`:`<div class="notice ok">Đủ ${fmt(f.asked.length)}/${fmt(f.asked.length)} số phiếu đều có chứng từ.</div>`;
+  const b=document.getElementById('cpMiss');if(b)b.onclick=()=>copyTxt(miss.join('\n'))}catch{}}
 async function searchServer(f){
  let p=toP(f),how=[],fuzzy=null;
  if(f.ma)how.push((f.maKieu||'Mã liên quan')+' (máy chủ: '+fmt((f.sos||new Set()).size)+' chứng từ)');
@@ -587,6 +607,8 @@ function vSearch(){
  const go=async q=>{q=q.trim();if(!q){$('#res').innerHTML='';return}const f=parseQ(q);
   $('#res').innerHTML='<div class="empty">Đang tra cứu trên máy chủ…</div>';
   try{
+   const mp=await multiP(q);
+   if(mp){const sum=await sumP(mp.p);log('Tra cứu',q,sum.tong||0);ls.set('lastQ',q);showRes(mp.f,{p:mp.p,sum,how:[],fuzzy:null});return}
    if(f.ma){const {data,error}=await SB.rpc('tim_theo_ma',{q:f.ma});
     if(error)toast('Không tra được mã trên máy chủ: '+error.message,6000);
     f.sos=new Set((data||[]).map(x=>x.so_phieu));
@@ -610,7 +632,7 @@ function showRes(f,{p,sum,how,fuzzy}){
  else head=`<div class="sum"><h2>${n===1?'Tìm thấy 1 bộ hồ sơ':fmt(n)+' chứng từ phù hợp'}</h2><span class="s">${xn}<i>Dự án<b>${fmt(sum.du_an||0)}</b></i>${tl}</span></div>`;
  const vm=vmode();
  const vt=n?`<button class="btn ghost" id="exAll" title="Xuất toàn bộ ${fmt(n)} phiếu theo bộ lọc">Xuất kết quả (.xlsx)</button><button class="btn ghost" id="prA4" title="In toàn bộ kết quả lọc khổ A4 ngang">In A4</button><button class="btn pdf" id="exPdf"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M6 2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zm8 1.5V8h4.5"/><text x="6" y="19" font-size="7" font-weight="800" fill="#8b0d0d">PDF</text></svg>Xuất PDF trọn bộ</button><span class="vt vt3"><button data-vm="list" class="${vm==='list'?'on':''}" title="Danh sách từng phiếu">☰<span>Danh sách</span></button><button data-vm="grid" class="${vm==='grid'?'on':''}" title="Dạng thẻ">▦<span>Thẻ</span></button><button data-vm="group" class="${vm==='group'?'on':''}" title="Gom nhóm theo dự án">⧉<span>Theo dự án</span></button></span>`:'';
- $('#res').innerHTML=`<div class="chips">${chips}</div>${fuzzy?`<div class="notice">Không có kết quả khớp chính xác với “${esc(f.words.join(' '))}”. Đang hiển thị kết quả <b>gần đúng</b> – vui lòng đối chiếu: ${fuzzy.map(b=>`${esc(b.kind)} <b>${esc(b.name)}</b> (giống ${(b.v*100).toFixed(0)}%)`).join('; ')}.</div>`:''}${how.length?`<div class="notice ok">Khớp trong ${how.map(esc).join(', ')} của chứng từ.</div>`:''}${head}${vt?`<div class="tbar">${vt}</div><div class="selbar" id="selBar"></div>`:''}<div id="rt"></div>`;
+ $('#res').innerHTML=`<div class="chips">${chips}</div>${fuzzy?`<div class="notice">Không có kết quả khớp chính xác với “${esc(f.words.join(' '))}”. Đang hiển thị kết quả <b>gần đúng</b> – vui lòng đối chiếu: ${fuzzy.map(b=>`${esc(b.kind)} <b>${esc(b.name)}</b> (giống ${(b.v*100).toFixed(0)}%)`).join('; ')}.</div>`:''}<div id="missN"></div>${how.length?`<div class="notice ok">Khớp trong ${how.map(esc).join(', ')} của chứng từ.</div>`:''}${head}${vt?`<div class="tbar">${vt}</div><div class="selbar" id="selBar"></div>`:''}<div id="rt"></div>`;
  updSel();
  table(p,f,'#rt',n);
  const nm=f.day?'Bang_ke_ngay_'+f.day:'Ket_qua_tra_cuu';
@@ -621,7 +643,8 @@ function showRes(f,{p,sum,how,fuzzy}){
  $('#prA4')&&($('#prA4').onclick=withAll(R=>printRows(R,'KẾT QUẢ TRA CỨU: '+(f.labels.concat(f.words.length?['Từ khoá: '+f.words.join(' ')]:[])).join(' · '))));
  $('#exPdf')&&($('#exPdf').onclick=withAll(R=>{const pj=R[0]&&R.every(r=>(r.m||r.p)===(R[0].m||R[0].p))&&(R[0].p||R[0].m);const lb=pj?'Du an: '+asciiU(R[0].p||R[0].m).toUpperCase():f.day?'Ngay: '+fd(f.day):(f.labels.concat(f.words.length?['Tu khoa: '+f.words.join(' ')]:[])).map(asciiU).join(' | ');const nm2=pj?'du_an_'+P.key(R[0].p||R[0].m).replace(/ /g,'_').slice(0,60):f.day?'ngay_'+f.day:'ket_qua_tra_cuu';mergePdf(R,nm2,lb)}));
  $('#res').querySelectorAll('[data-vm]').forEach(b=>b.onclick=()=>{ls.set('vmode',b.dataset.vm);$('#res').querySelectorAll('[data-vm]').forEach(x=>x.classList.toggle('on',x===b));TBL.page=0;TBL.gpage=0;drawTable()});
- if(n===1)pageP(p,0,'d',-1,1).then(r=>r[0]&&detail(r[0])).catch(()=>{});
+ if(f.multi)missingNote(f,p,'#missN');
+ else if(n===1)pageP(p,0,'d',-1,1).then(r=>r[0]&&detail(r[0])).catch(()=>{});
 }
 
 /* ---------- Kết xuất ---------- */
@@ -758,11 +781,11 @@ function ask(msg){return new Promise(ok=>{$('#dlgT').textContent='Xác nhận';$
 
 function vExport(){
  $('#ttl').textContent='Kết xuất chứng từ';
- const modes=[['one','Phiếu riêng lẻ'],['proj','Toàn bộ theo dự án'],['day','Theo ngày'],['month','Theo tháng'],['year','Theo năm'],['ncc','Theo nhà cung cấp'],['combo','Kết hợp nhiều điều kiện']];
+ const modes=[['one','Phiếu / PO / Đội / Số xe…'],['proj','Toàn bộ theo dự án'],['day','Theo ngày'],['month','Theo tháng'],['year','Theo năm'],['ncc','Theo nhà cung cấp'],['combo','Kết hợp nhiều điều kiện']];
  const yrs=((STATS&&STATS.nam)||[]).map(String).sort().reverse();
  $('#view').innerHTML=`<div class="tabs" id="xm">${modes.map((m,i)=>`<button data-m="${m[0]}" class="${i?'':'on'}">${m[1]}</button>`).join('')}</div>
  <div class="card"><div class="form">
-  <label id="fSo">Số phiếu<input id="xSo" placeholder="PX25/10-3836 hoặc 4900088403"></label>
+  <label id="fSo">Số phiếu / PO / Đội nhận / Số xe / từ khoá<input id="xSo" placeholder="Nhiều số phiếu cách nhau dấu cách hoặc phẩy: 4900156622 4900156741 · Số PO 4100009602 · Đội / số xe / mặt hàng…"></label>
   <label id="fPj">Dự án / mã công trình<input id="xPj" list="lPj" placeholder="Gõ để chọn dự án"></label>
   <label id="fNc">Nhà cung cấp<input id="xNc" list="lNc" placeholder="Gõ để chọn nhà cung cấp"></label>
   <label id="fDay">Ngày<input id="xDay" type="date"></label>
@@ -774,22 +797,25 @@ function vExport(){
  <datalist id="lPj">${projects.map(p=>`<option value="${esc((p.m?p.m+' – ':'')+(p.p||''))}">`).join('')}</datalist>
  <datalist id="lNc">${suppliers.map(s=>`<option value="${esc(s.n)}">`).join('')}</datalist>
  <div class="row"><button class="btn" id="xGo" disabled>Kết xuất bộ chứng từ</button><span class="sm" id="xCnt"></span></div></div>
- <div class="sum"><h2 id="xH">Xem trước</h2></div><div class="selbar" id="selBar"></div><div id="xT"></div>`;
+ <div class="sum"><h2 id="xH">Xem trước</h2></div><div id="xMiss"></div><div class="selbar" id="selBar"></div><div id="xT"></div>`;
  let mode='one',tk=null;
  const show={one:['fSo'],proj:['fPj','fTy'],day:['fDay','fTy'],month:['fMo','fTy'],year:['fYr','fTy'],ncc:['fNc','fYr','fTy'],combo:['fPj','fNc','fMo','fYr','fTy']};
- const buildP=()=>{const v=id=>$('#'+id).value.trim(),on=id=>show[mode].includes(id);
-  if(mode==='one'){const s=v('xSo');if(!s)return null;const f=parseQ(s);return f.so?{so:f.so}:{so_chua:s}}
+ let XF=null;
+ const buildP=async()=>{const v=id=>$('#'+id).value.trim(),on=id=>show[mode].includes(id);XF=null;
+  if(mode==='one'){const s=v('xSo');if(!s)return null;const mp=await multiP(s);if(mp){XF=mp.f;return mp.p}
+   const f=parseQ(s);if(f.ma){const {data}=await SB.rpc('tim_theo_ma',{q:f.ma});f.sos=new Set((data||[]).map(x=>x.so_phieu))}
+   const r=await searchServer(f);return hasP(r.p)?r.p:null}
   const p={};if(on('fPj')&&v('xPj'))p.du_an=v('xPj');if(on('fNc')&&v('xNc'))p.ncc=v('xNc');if(on('fDay')&&v('xDay'))p.ngay=v('xDay');if(on('fMo')&&v('xMo'))p.thang=v('xMo');if(on('fYr')&&v('xYr'))p.nam=v('xYr');if(on('fTy')&&v('xTy'))p.loai=[v('xTy')];
   return Object.keys(p).length?p:null};
- const calc=()=>{clearTimeout(tk);tk=setTimeout(async()=>{const p=buildP();
+ const calc=()=>{clearTimeout(tk);tk=setTimeout(async()=>{let p;try{p=await buildP()}catch(e){$('#xCnt').textContent='Lỗi: '+e.message;return}
   if(!p){$('#xCnt').textContent='Chọn điều kiện để xem trước';$('#xH').textContent='Xem trước';$('#xT').innerHTML='';$('#xGo').disabled=true;return}
   $('#xCnt').textContent='Đang đếm trên máy chủ…';
-  try{const s=await sumP(p);$('#xCnt').textContent=s.tong?`${fmt(s.tong)} chứng từ sẽ được kết xuất (xuất ${fmt(s.xuat)} · nhập ${fmt(s.nhap)})`:'Không có chứng từ phù hợp';$('#xH').textContent=s.tong?`Xem trước: ${fmt(s.tong)} chứng từ`:'Xem trước';$('#xGo').disabled=!s.tong;table(p,{words:[]},'#xT',s.tong)}
+  try{const s=await sumP(p);$('#xCnt').textContent=s.tong?`${fmt(s.tong)} chứng từ sẽ được kết xuất (xuất ${fmt(s.xuat)} · nhập ${fmt(s.nhap)})`:'Không có chứng từ phù hợp';$('#xH').textContent=s.tong?`Xem trước: ${fmt(s.tong)} chứng từ`:'Xem trước';$('#xGo').disabled=!s.tong;table(p,{words:[]},'#xT',s.tong);if(XF)missingNote(XF,p,'#xMiss');else $('#xMiss').innerHTML=''}
   catch(e){$('#xCnt').textContent='Lỗi: '+e.message}},350)};
  const setMode=m=>{mode=m;['fSo','fPj','fNc','fDay','fMo','fYr','fTy'].forEach(id=>$('#'+id).style.display=show[m].includes(id)?'':'none');$('#xm').querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.m===m));calc()};
  $('#xm').onclick=e=>{const b=e.target.closest('button');if(b)setMode(b.dataset.m)};
  $('#view').querySelectorAll('.form input,.form select').forEach(el=>{if(el.id!=='xFm')el.addEventListener('input',calc)});
- $('#xGo').onclick=async()=>{const p=buildP();if(!p)return;let R0;$('#xGo').disabled=true;try{R0=await allP(p)}catch(e){toast(e.message,6000)}$('#xGo').disabled=false;if(!R0||!R0.length)return;
+ $('#xGo').onclick=async()=>{const p=await buildP();if(!p)return;let R0;$('#xGo').disabled=true;try{R0=await allP(p)}catch(e){toast(e.message,6000)}$('#xGo').disabled=false;if(!R0||!R0.length)return;
   const fmL=$('#xFm').selectedOptions[0].textContent;
   $('#dlgT').textContent='Xem danh sách trước khi kết xuất';
   $('#dlgB').innerHTML=`<div class="notice">Định dạng: <b>${esc(fmL)}</b>. Bỏ tick những chứng từ không muốn kết xuất.${SEL.size?` <button class="btn ghost" id="pvOnlySel" style="min-height:32px">Chỉ giữ ${fmt(SEL.size)} phiếu đã chọn</button>`:''}</div>
@@ -816,7 +842,7 @@ function vExport(){
    $('#dlg').classList.remove('on');mergePdf(R,'Xem_truoc','XEM TRUOC TRON BO').finally(()=>{PDFPREV=null})};
   $('#pvGo').onclick=()=>{const R=[...$('#dlgB').querySelectorAll('.pvC:checked')].map(c=>R0[+c.dataset.i]);$('#dlg').classList.remove('on');doExport(R)};
   cnt();$('#dlg').classList.add('on')};
- const doExport=R=>{const v=id=>$('#'+id).value;const nm={one:'Phieu_'+v('xSo'),proj:'Du_an_'+v('xPj').split(' – ')[0],day:'Ngay_'+v('xDay'),month:'Thang_'+v('xMo'),year:'Nam_'+v('xYr'),ncc:'NCC_'+v('xNc').slice(0,30),combo:'Bo_chung_tu_ket_hop'}[mode].replace(/[^\w\-]+/g,'_');$('#xFm').value==='zip'?zipPdf(R,nm):$('#xFm').value==='pdf'?mergePdf(R,nm,({one:'Phieu: ',proj:'Du an: ',day:'Ngay: ',month:'Thang: ',year:'Nam: ',ncc:'Nha cung cap: ',combo:'Bo chung tu ket hop: '}[mode])+asciiU([v('xSo'),v('xPj'),v('xDay'),v('xMo'),v('xYr'),v('xNc')].filter(Boolean).join(' - ')).toUpperCase()):exportRows(R,nm,$('#xFm').value)};
+ const doExport=R=>{const v=id=>$('#'+id).value;const nm={one:'Phieu_'+v('xSo').slice(0,40),proj:'Du_an_'+v('xPj').split(' – ')[0],day:'Ngay_'+v('xDay'),month:'Thang_'+v('xMo'),year:'Nam_'+v('xYr'),ncc:'NCC_'+v('xNc').slice(0,30),combo:'Bo_chung_tu_ket_hop'}[mode].replace(/[^\w\-]+/g,'_');$('#xFm').value==='zip'?zipPdf(R,nm):$('#xFm').value==='pdf'?mergePdf(R,nm,({one:'Phieu: ',proj:'Du an: ',day:'Ngay: ',month:'Thang: ',year:'Nam: ',ncc:'Nha cung cap: ',combo:'Bo chung tu ket hop: '}[mode])+asciiU([v('xSo'),v('xPj'),v('xDay'),v('xMo'),v('xYr'),v('xNc')].filter(Boolean).join(' - ')).toUpperCase()):exportRows(R,nm,$('#xFm').value)};
  setMode('one');updSel();
 }
 
