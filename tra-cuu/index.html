@@ -864,7 +864,7 @@ async function vData(sub){
    dv.innerHTML=`<div class="card">${ks.map(k=>`<div style="display:grid;grid-template-columns:minmax(0,220px) minmax(0,1fr) 70px;gap:12px;align-items:center;margin:8px 0"><span><span class="tag">${esc(k)}</span> ${esc(TY[k]||k)}</span><div class="bar"><i style="width:${c[k]/mx*100}%"></i></div><b style="text-align:right">${fmt(c[k])}</b></div>`).join('')}</div>`}
   if(sub==='dup'){const U=await rpcAll('ds_trung_lap',{},'so_tep');dv.innerHTML=`<div class="notice">Cùng một số phiếu (cùng loại) xuất hiện ở nhiều tệp. Ô tra cứu tự ẩn bản trùng và giữ tệp đầy đủ nhất; hệ thống không tự xoá tệp – hãy đối chiếu rồi xử lý trên Drive.</div>`+(U.length?listTbl(['Số phiếu','Số tệp','Các tệp / thư mục'],U.map(x=>[x.so_phieu,+x.so_tep,x.cac_tep]),i=>goSearch(U[i].so_phieu)):'<div class="empty">Không có số phiếu trùng.</div>')}
   if(sub==='sync'){dv.innerHTML=`<div class="grid2"><div class="card"><h3 style="margin-top:0">Chỉ mục tra cứu trên máy chủ</h3><p>Dữ liệu mới nhất: <b>${esc(ls.get('lastSync','—'))}</b><br>Bảng tra cứu tính sẵn tự làm mới 10 phút/lần. Sau khi bổ sung chứng từ hoặc đồng bộ SAP có thể bấm làm mới ngay.</p><div class="row" style="margin-top:0"><button class="btn" id="dRef">Làm mới chỉ mục tra cứu ngay</button></div><div id="dRefS" class="sm" style="margin-top:8px"></div></div>
-   <div class="card"><h3 style="margin-top:0">Google Drive → danh mục</h3><p>Chứng từ bổ sung qua đồng bộ: <b>${fmt(ls.get('extra',[]).length)}</b></p><div class="row" style="margin-top:0"><button class="btn ghost" id="dSync">Quét chứng từ mới trên Drive</button><button class="btn ghost" id="dFull">Quét toàn bộ thư mục</button></div><div id="dSyncS" class="sm" style="margin-top:8px"></div></div></div>`;
+   <div class="card"><h3 style="margin-top:0">Google Drive → danh mục</h3><p>Quét 2 thư mục Bo_Phieu_Da_Tach_2026 và Bo_Phieu_Da_Tach_2025 (cả thư mục con), thêm các tệp PDF chưa có vào hệ thống. Lần quét gần nhất: <b>${esc(ls.get('driveSince',null)?new Date(ls.get('driveSince')).toLocaleString('vi-VN'):'chưa quét')}</b></p><div class="row" style="margin-top:0"><button class="btn ghost" id="dSync">Quét chứng từ mới trên Drive</button><button class="btn ghost" id="dFull">Quét toàn bộ thư mục</button></div><div id="dSyncS" class="sm" style="margin-top:8px"></div></div></div>`;
    $('#dRef').onclick=async()=>{const b=$('#dRef');b.disabled=true;$('#dRefS').textContent='Đang gửi yêu cầu…';const r=await refreshIndex();$('#dRefS').textContent=r?(r.nen?'Máy chủ đang làm mới nền – khoảng 10–30 giây nữa bấm “Cập nhật dữ liệu mới” (mục 4) để xem số liệu mới.':'Đã làm mới: '+fmt(r.tong)+' chứng từ.'):'';await loadMeta().catch(()=>{});b.disabled=false};
    $('#dSync').onclick=()=>syncDrive(false);$('#dFull').onclick=()=>syncDrive(true)}
   if(sub==='log'){const L=ls.get('log',[]);dv.innerHTML=L.length?listTbl(['Thời gian','Hoạt động','Nội dung','Kết quả'],L.map(x=>[new Date(x.t).toLocaleString('vi-VN'),x.a,x.n,x.c])):'<div class="empty">Chưa có lịch sử tra cứu hoặc kết xuất trên trình duyệt này.</div>'}
@@ -879,19 +879,32 @@ function goSearch(q){ls.set('lastQ',q);location.hash='tra-cuu';if(location.hash=
 /* ---------- Đồng bộ Drive (qua kết nối Google Drive của người xem) ---------- */
 function payload(res){let p=res&&(res.payload??res.result??res);if(p&&p.content&&Array.isArray(p.content)){const t=p.content.map(c=>c.text||'').join('');try{return JSON.parse(t)}catch{return t}}if(typeof p==='string'){try{return JSON.parse(p)}catch{}}return p}
 async function syncDrive(full){
- const mcp=await claude.use('mcp');const s=$('#dSyncS');if(!mcp){s.textContent='Chưa cấp quyền Google Drive cho trang này – hãy mở trang trên claude.ai và cho phép kết nối.';return}
- const since=full?null:ls.get('syncSince','2026-11-21T00:00:00Z');let added=[],seen=new Set();
- try{for(const [fid,fname] of DRIVE_FOLDERS){let tok=null,guard=0;do{s.textContent=`Đang quét ${fname} – trang ${guard+1}… đã thêm ${fmt(added.length)} chứng từ mới (đang ghi vào Supabase). Giữ nguyên tab này.`;
-   const inp={query:`'${fid}' in ancestors`+(since?` and createdTime > '${since}'`:'')+` and mimeType != 'application/vnd.google-apps.folder'`,pageSize:100,snippetVerbosity:'MEDIUM'};if(tok)inp.pageToken=tok;
-   const p=payload(await mcp.callTool('Google Drive','search_files',inp));const files=(p&&p.files)||[];
-   const fresh=[];for(const f of files){if(seen.has(f.id))continue;f.folderName=fname;const r=P.parse(f);seen.add(f.id);const c=compact(r);added.push(c);fresh.push(c)}
-   if(fresh.length){if(ls.get('sb',{}).ready){try{await sbSql(`insert into chung_tu(${COLSQL}) values ${fresh.map(rowSql).join(',')} on conflict (drive_id) do update set ${COLSQL.split(',').slice(1).map(c=>c+'=excluded.'+c).join(',')}`);const pu=new Set(ls.get('pushed',[]));fresh.forEach(r=>pu.add(r.i));ls.set('pushed',[...pu])}catch(e){const er=ls.get('sbErr',[]);er.unshift({t:new Date().toISOString(),from:fresh[0].s,to:fresh[fresh.length-1].s,n:fresh.length,ids:fresh.map(r=>r.i),err:String(e.message||e).slice(0,300)});ls.set('sbErr',er.slice(0,200))}}}
-   tok=p&&p.nextPageToken;}while(tok&&++guard<(full?400:40))}
- }catch(e){s.textContent='Lỗi khi quét Drive: '+(e.code||e.message||e);return}
- const ex=ls.get('extra',[]).concat(added);ls.set('extra',ex.map(r=>({...r,t:(r.t||'').slice(0,200)})));ls.set('syncSince',new Date().toISOString());ls.set('lastSync',new Date().toLocaleString('vi-VN'));
- loadMeta().catch(()=>{});log('Đồng bộ Drive',full?'Quét toàn bộ thư mục':'Quét chứng từ mới',added.length);
- s.textContent=added.length?`Đã bổ sung ${added.length} chứng từ mới vào danh mục.`:'Không có chứng từ mới.';
- if(added.length&&ls.get('sb',{}).ready)s.textContent+=' Đã ghi vào Supabase.';
+ const s=$('#dSyncS'),bt=[$('#dSync'),$('#dFull')];bt.forEach(b=>b&&(b.disabled=true));
+ try{
+  const tk=await driveToken();if(!tk){s.textContent='Chưa cấp quyền đọc Google Drive (đăng nhập Google và tick "Xem tệp trên Google Drive").';return}
+  const last=ls.get('driveSince',null),since=full||!last?null:new Date(new Date(last).getTime()-3*86400000).toISOString();
+  const start=new Date().toISOString(),files=[];
+  const list=async(q,fields)=>{const out=[];let pt='';do{
+   const u='https://www.googleapis.com/drive/v3/files?pageSize=1000&supportsAllDrives=true&includeItemsFromAllDrives=true&fields=nextPageToken,files('+fields+')&q='+encodeURIComponent(q)+(pt?'&pageToken='+pt:'');
+   const r=await fetch(u,{headers:{Authorization:'Bearer '+tk}});
+   if(!r.ok){let m='';try{m=(await r.json()).error.message||''}catch{}if(r.status===401)GTOK={t:'',exp:0};throw new Error('Google Drive '+r.status+' '+m)}
+   const j=await r.json();out.push(...(j.files||[]));pt=j.nextPageToken||''}while(pt);return out};
+  for(const [fid,root] of DRIVE_FOLDERS){const qq=[[fid,root]];
+   while(qq.length){const [id,path]=qq.shift();
+    s.textContent=`Đang quét ${path}… đã thấy ${fmt(files.length)} tệp PDF${since?' mới':''}. Giữ nguyên tab này.`;
+    (await list(`'${id}' in parents and trashed=false and mimeType='application/vnd.google-apps.folder'`,'id,name')).forEach(f=>qq.push([f.id,path+'/'+f.name]));
+    (await list(`'${id}' in parents and trashed=false and mimeType!='application/vnd.google-apps.folder'`+(since?` and createdTime > '${since}'`:''),'id,name,size,createdTime'))
+     .filter(f=>/\.pdf$/i.test(f.name)).forEach(f=>files.push({id:f.id,ten:f.name,thu_muc:path,size:f.size||'',tao:f.createdTime||''}))}}
+  let them=0,daco=0;
+  for(let i=0;i<files.length;i+=1000){s.textContent=`Đang đối chiếu với máy chủ: ${fmt(Math.min(i+1000,files.length))}/${fmt(files.length)} tệp… đã thêm ${fmt(them)} chứng từ mới`;
+   const r=await rpc('them_tep_drive',{p_tep:files.slice(i,i+1000)});them+=r.them||0;daco+=r.da_co||0}
+  ls.set('driveSince',start);
+  if(them){s.textContent=`Đã thêm ${fmt(them)} chứng từ mới – đang làm mới chỉ mục tra cứu…`;const rr=await refreshIndex();await loadMeta().catch(()=>{});
+   s.textContent=`Đã quét ${fmt(files.length)} tệp PDF: thêm mới ${fmt(them)} chứng từ, ${fmt(daco)} tệp đã có sẵn.`+(rr&&rr.nen?' Máy chủ đang làm mới chỉ mục – khoảng 30 giây nữa tra cứu được.':' Đã tra cứu được ngay.')}
+  else s.textContent=`Đã quét ${fmt(files.length)} tệp PDF${since?' mới (từ '+new Date(since).toLocaleDateString('vi-VN')+')':''}: không có chứng từ mới – tất cả đã có trong hệ thống.`;
+  log('Đồng bộ Drive',full?'Quét toàn bộ thư mục':'Quét chứng từ mới',them);
+ }catch(e){s.textContent='Lỗi khi quét Drive: '+(e.message||e)+(/them_tep_drive/.test(e.message||'')?' – quản trị viên chạy tệp quet_drive_moi.sql trên Supabase.':'')}
+ finally{bt.forEach(b=>b&&(b.disabled=false))}
 }
 function compact(r){const o={i:r.id,f:r.file,fo:r.folder,s:r.so,l:r.loai,d:r.ngay,c:r.created,z:r.size,t:r.text.slice(0,520)};
  if(r.ngay_uoc)o.de=1;if(r.du_an_ma)o.m=r.du_an_ma;if(r.du_an)o.p=r.du_an;if(r.wbs)o.w=r.wbs;if(r.ncc)o.n=r.ncc;if(r.bo_phan)o.b=r.bo_phan;if(r.dien_giai)o.g=r.dien_giai;if(r.loai_gd)o.x=r.loai_gd;if(r.lenh)o.o=r.lenh;if(r.tong_sl)o.q=r.tong_sl;if(!r.ocr)o.oc=0;return o}
