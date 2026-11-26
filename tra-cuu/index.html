@@ -1069,7 +1069,7 @@ async function addMissing(rows,onMsg){
  for(const o of todo){const f=idx.get(o.so);if(!f){none++;continue}
   names.push(o.so);if(have.has(f.file_id))continue;have.add(f.file_id);
   const gi=/^49/.test(o.so);
-  add.push({drive_id:f.file_id,so_phieu:o.so,loai:gi?'GI':'GR',loai_ten:gi?'Phiếu xuất kho (SAP)':'Phiếu nhập kho (SAP)',ngay:o.d||null,ngay_uoc_tinh:false,nam:o.d?+o.d.slice(0,4):null,thang:o.d?+o.d.slice(5,7):null,du_an_ma:o.pm||null,du_an:o.pn||null,wbs:o.pm||null,nha_cung_cap:o.v||null,loai_giao_dich:o.mvs||null,so_xe:o.tr||null,ten_tep:f.ten_tep||(o.so+'.pdf'),thu_muc:SRC_FOLDER,duong_dan:f.link||('https://drive.google.com/file/d/'+f.file_id+'/view'),co_noi_dung:false,dong_bo_luc:now})}
+  add.push({drive_id:f.file_id,so_phieu:o.so,loai:gi?'GI':'GR',loai_ten:gi?'Phiếu xuất kho (SAP)':'Phiếu nhập kho (SAP)',ngay:o.d||null,ngay_uoc_tinh:false,du_an_ma:o.pm||null,du_an:o.pn||null,wbs:o.pm||null,nha_cung_cap:o.v||null,loai_giao_dich:o.mvs||null,so_xe:o.tr||null,ten_tep:f.ten_tep||(o.so+'.pdf'),thu_muc:SRC_FOLDER,duong_dan:f.link||('https://drive.google.com/file/d/'+f.file_id+'/view'),co_noi_dung:false,dong_bo_luc:now})}
  ls.set('driveNames',[...new Set(names)]);
  for(let i=0;i<add.length;i+=500){const {error}=await SB.from('chung_tu').upsert(add.slice(i,i+500),{onConflict:'drive_id',ignoreDuplicates:true});if(error)throw new Error('Ghi Supabase lỗi: '+error.message);onMsg&&onMsg(`Đang bổ sung ${fmt(Math.min(i+500,add.length))}/${fmt(add.length)} chứng từ…`)}
  if(add.length){await refreshIndex();await loadMeta().catch(()=>{})}
